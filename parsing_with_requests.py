@@ -19,20 +19,13 @@ class InfoRequest:
     search_url = "https://www.comtt.ru/search.php"
     # search_url_v2 = "https://www.comtt.ru/k/a/example/ws_search/search.php"
     search_url_v2 = "https://www.comtt.ru/k/t/t.php"
-    with open("комтранс_авторизация.txt", "r") as auth_data_file:
-        username_omega = auth_data_file.readline().strip()
-        password_omega = auth_data_file.readline().strip()
-        auth_data = {"username": username_omega,
-                     "password": password_omega}
-        auth_data_v2 = {"login": username_omega,
-                        "pass": password_omega}
     user_agent = UserAgent().random
     waiting_time = 10
 
 
 class ParsingWithRequests:
     """Авторизация сессии, сохранение и выгрузка информации о сессии, а также парсинг с помощью requests"""
-    session_file = 'session.pkl'
+    session_file = ''  # тут должно быть имя pickle файл для сериализации и десериализации сессии
 
     def save_session(self):
         with open(self.session_file, 'wb') as file:
