@@ -320,6 +320,13 @@ class ParserComTrans:
         return result_answer
 
 
+class ParserTrackMotors:
+    session_file = 'session_track_motors.pkl'
+
+    def __init__(self):
+        self.cur_session = requests.Session()
+
+
 if __name__ == "__main__":
     parser = ParserComTrans()
     parser.parsing_article("003310")
