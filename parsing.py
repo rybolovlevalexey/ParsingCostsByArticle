@@ -33,7 +33,7 @@ class BaseParser:
     session_dir = "all_sessions"
 
     @staticmethod
-    def auth_selenium(driver, authorization_dict: dict[str, str]):
+    def auth_selenium(driver, authorization_dict: dict[str, str], flag_sleep=False):
         """Метод для выполнения авторизации на сайте
         :param driver: хром-драйвер, для которого необходимо выполнить авторизацию
         :param authorization_dict: авторизационная информация (логин, пароль) - порядок важен
@@ -48,6 +48,9 @@ class BaseParser:
         password_field.send_keys(list(authorization_dict.values())[1])
         password_field.send_keys(Keys.RETURN)
         print("введены данные и нажат enter")
+
+        if flag_sleep:
+            time.sleep(3)
         return driver
 
     @staticmethod
@@ -258,55 +261,42 @@ class ParserTrackMotors(BaseParser):
         # Открытие страницы авторизации
         driver.get(self.auth_url)
         print("страница авторизации открыта успешно")
+        driver = self.auth_selenium(driver, self._authorization_dict, flag_sleep=True)
+        print("Произведена авторизация и информация сохранена в файл")
+        self.save_selenium(driver, self.parser_name)
+        art_input = driver.find_element(By.NAME, "q")
 
-        if os.path.exists(os.path.join(BaseParser.session_dir, self.parser_name + ".pkl")):
-            driver = self.load_selenium(driver, self.parser_name)
-            print("В драйвер подгружена информация об актуальной сессии")
-        else:
-            driver = self.auth_selenium(driver, self._authorization_dict)
-            self.save_selenium(driver, self.parser_name)
-            print("Информация о сессии сохранена в файл")
-
-        # Переход к защищенной странице
-        driver.get(self.search_url + f"?fnd={article}")
-        print("выполнение поиска по артикулу")
-        # wait = WebDriverWait(driver, 10)  # ожидание до 10 секунд
-        # wait.until_not(EC.visibility_of_element_located((
-        #     By.XPATH, "//h3[text()='Выполняется расширенный поиск, результаты будут отображены.']")))
+        art_input.send_keys(article)
+        art_input.send_keys(Keys.ENTER)
         time.sleep(self.waiting_time)
 
-        if (driver.find_element(By.XPATH, "//font[@color='red']") and
-                "Внимание! Вы не авторизованы!" in
-                driver.find_element(By.XPATH, "//font[@color='red']").text.strip()):
-            print("Текущая сессия не зарегистрирована")
-            driver = self.auth_selenium(driver, self._authorization_dict)
-            driver.get(self.search_url + f"?fnd={article}")
-            print("выполнение поиска по артикулу после повторной регистрации")
-            time.sleep(self.waiting_time)
-            # wait = WebDriverWait(driver, 10)  # ожидание до 10 секунд
-            # wait.until_not(EC.visibility_of_element_located((
-            #     By.XPATH, "//h3[text()='Выполняется расширенный поиск, результаты будут отображены.']")))
-            self.save_selenium(driver, self.parser_name)
-            print("обновление информации о сессии")
-
-        # Парсинг содержимого защищенной страницы
-        print("начат парсинг")
-        # сохранение в html файл ответа для дальнейших проверок
-        html_source = driver.page_source
-        with open('page.html', 'w', encoding='utf-8') as file:
-            file.write(html_source)
-
-        content = driver.find_element(By.TAG_NAME, 'body')
-        tag_name = "tbody"
-        class_name = "sort"
         info_by_article = list()
-        for line in content.find_element(By.CSS_SELECTOR,
-                                         f"{tag_name}.{class_name}").find_elements(
-            By.TAG_NAME, "tr"):
-            info_by_article.append([line.find_elements(By.TAG_NAME, "td")[1].text.strip(),
-                                    line.find_elements(By.TAG_NAME, "td")[2].text.strip(),
-                                    line.find_elements(By.TAG_NAME, "td")[6].text.strip()])
-        print(f"Кол-во товаров найденных по артикулу {len(info_by_article)}")
+        pages_count = int(driver.find_element(By.CLASS_NAME, "mat-mdc-paginator-range-label").text.strip().split()[-1])
+        if pages_count >= 1:
+            for line in driver.find_element(
+                    By.XPATH, "//tbody[@role='rowgroup']").find_elements(By.TAG_NAME, "tr"):
+                try:
+                    if len(line.find_element(By.TAG_NAME, "td").find_element(
+                            By.TAG_NAME, "div").find_elements(By.CLASS_NAME, "article")) > 0:
+                        line_article = line.find_element(By.TAG_NAME, "td").find_element(
+                            By.TAG_NAME, "div").find_element(By.CLASS_NAME, "article").text
+                    else:
+                        line_article = line.find_element(By.TAG_NAME, "td").find_element(
+                            By.TAG_NAME, "div").find_element(By.CLASS_NAME, "good_article").text
+                    line_name = line.find_element(By.TAG_NAME, "td").find_elements(By.TAG_NAME, "span")[-2].text
+                    line_cost = line.find_elements(By.TAG_NAME, "td")[1].find_element(
+                        By.TAG_NAME, "div").find_element(By.TAG_NAME, "span").text
+                    print(line_article, line_name, line_cost)
+                    print("------")
+                except Exception:
+                    continue
+        elif pages_count > 1:
+            driver.find_elements(By.CLASS_NAME, "mat-mdc-button-touch-target")[2].click()
+            driver.save_screenshot("scr3.png")
+        else:
+            print("Информации по данному артикулу не найдено")
+            return False
+
         info_by_article = list(filter(lambda info_part: info_part[0] == article, info_by_article))
         print(f"Кол-во товаров с точным соответствием артикула {len(info_by_article)}")
         info_by_article = sorted(info_by_article, key=lambda info_part: info_part[2])
@@ -319,5 +309,5 @@ class ParserTrackMotors(BaseParser):
 
 
 if __name__ == "__main__":
-    parser = ParserKomTrans()
-    parser.parsing_article("003310")
+    parser = ParserTrackMotors()
+    parser.parsing_article("003310")  # 003310, 85696
