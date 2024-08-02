@@ -7,6 +7,8 @@ from pprint import pprint
 from requests.auth import HTTPBasicAuth
 from dataclasses import dataclass
 import time
+import json
+from abc import ABC, abstractmethod
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -44,7 +46,46 @@ def func_timer(func):
     return wrapper
 
 
-class ParserComTrans:
+class BaseParser:
+    @staticmethod
+    def auth_selenium(driver, authorization_dict: dict[str, str]):
+        """Метод для выполнения авторизации на сайте
+        :param driver: хром-драйвер, для которого необходимо выполнить авторизацию
+        :param authorization_dict: авторизационная информация (логин, пароль) - порядок важен
+            ключ - название поля для ввода логина/пароля на форме
+            значение - логин/пароль для данного пользователя"""
+        # Поиск и заполнение полей для ввода логина и пароля
+        username_field = driver.find_element(By.NAME, list(authorization_dict.keys())[0])
+        password_field = driver.find_element(By.NAME, list(authorization_dict.keys())[1])
+        print("найдены поля логин и пароль")
+
+        username_field.send_keys(list(authorization_dict.values())[0])
+        password_field.send_keys(list(authorization_dict.values())[1])
+        password_field.send_keys(Keys.RETURN)
+        print("введены данные и нажат enter")
+        return driver
+
+    @staticmethod
+    def load_selenium(driver):
+        """Метод для выгрузки информации о сессии с целью не повторять
+         заново процесс авторизации, если он уже ранее был произведён"""
+        driver.delete_all_cookies()
+        with open("selenium_session.pkl", "rb") as file:
+            cookies = pickle.load(file)
+            for cookie in cookies:
+                driver.add_cookie(cookie)
+        return driver
+
+    @staticmethod
+    def save_selenium(driver):
+        """Метод по сохранению/обновлению информации о текущей сессии
+        для дальнейшего её использования без повторной авторизации"""
+        cookies = driver.get_cookies()
+        with open("selenium_session.pkl", "wb") as file:
+            pickle.dump(cookies, file)
+
+
+class ParserComTrans(BaseParser):
     session_file = 'session.pkl'
 
     def __init__(self):
@@ -145,35 +186,6 @@ class ParserComTrans:
         # print(soup.find_all("tbody")[1])
         print(search_response.content)
 
-    @staticmethod
-    def save_selenium_session(driver):
-        cookies = driver.get_cookies()
-        print(cookies)
-        with open("selenium_session.pkl", "wb") as file:
-            pickle.dump(cookies, file)
-
-    @staticmethod
-    def load_selenium_session(driver):
-        driver.delete_all_cookies()
-        with open("selenium_session.pkl", "rb") as file:
-            cookies = pickle.load(file)
-            for cookie in cookies:
-                driver.add_cookie(cookie)
-        return driver
-
-    @staticmethod
-    def selenium_auth(driver):
-        # Поиск и заполнение полей для ввода логина и пароля
-        username_field = driver.find_element(By.NAME, "login")
-        password_field = driver.find_element(By.NAME, "pass")
-        print("найдены поля логин и пароль")
-        username_field.send_keys(InfoRequest.auth_data["username"])
-        password_field.send_keys(InfoRequest.auth_data["password"])
-        password_field.send_keys(Keys.RETURN)
-        print("введены данные и нажат enter")
-
-        return driver
-
     @func_timer
     def parsing_article(self, article: str):
         chrome_options = Options()
@@ -189,11 +201,11 @@ class ParserComTrans:
         print("страница авторизации открыта успешно")
 
         if os.path.exists("selenium_session.pkl"):
-            driver = self.load_selenium_session(driver)
+            driver = self.load_selenium(driver)
             print("В драйвер подгружена информация об актуальной сессии")
         else:
-            driver = self.selenium_auth(driver)
-            self.save_selenium_session(driver)
+            driver = self.auth_selenium(driver)
+            self.save_selenium(driver)
             print("Информация о сессии сохранена в файл")
 
         # Переход к защищенной странице
@@ -208,14 +220,14 @@ class ParserComTrans:
                 "Внимание! Вы не авторизованы!" in
                 driver.find_element(By.XPATH, "//font[@color='red']").text.strip()):
             print("Текущая сессия не зарегистрирована")
-            driver = self.selenium_auth(driver)
+            driver = self.auth_selenium(driver)
             driver.get(InfoRequest.search_url + f"?fnd={article}")
             print("выполнение поиска по артикулу после повторной регистрации")
             time.sleep(InfoRequest.waiting_time)
             # wait = WebDriverWait(driver, 10)  # ожидание до 10 секунд
             # wait.until_not(EC.visibility_of_element_located((
             #     By.XPATH, "//h3[text()='Выполняется расширенный поиск, результаты будут отображены.']")))
-            self.save_selenium_session(driver)
+            self.save_selenium(driver)
             print("обновление информации о сессии")
 
         # Парсинг содержимого защищенной страницы
@@ -265,11 +277,11 @@ class ParserComTrans:
         print("страница авторизации открыта успешно")
 
         if os.path.exists("selenium_session.pkl"):
-            driver = self.load_selenium_session(driver)
+            driver = self.load_selenium(driver)
             print("В драйвер сохранена информация об актуальной сессии")
         else:
-            driver = self.selenium_auth(driver)
-            self.save_selenium_session(driver)
+            driver = self.auth_selenium(driver)
+            self.save_selenium(driver)
             print("Информация о сессии сохранена в файл")
 
         for i in range(len(articles)):
@@ -283,11 +295,11 @@ class ParserComTrans:
                     "Внимание! Вы не авторизованы!" in
                     driver.find_element(By.XPATH, "//font[@color='red']").text.strip()):
                 print("Текущая сессия не зарегистрирована")
-                driver = self.selenium_auth(driver)
+                driver = self.auth_selenium(driver)
                 driver.get(InfoRequest.search_url + f"?fnd={articles[i]}")
                 print("выполнение поиска по артикулу после повторной регистрации")
                 time.sleep(InfoRequest.waiting_time)
-                self.save_selenium_session(driver)
+                self.save_selenium(driver)
                 print("обновление информации о сессии")
 
             # Парсинг содержимого защищенной страницы
@@ -320,13 +332,39 @@ class ParserComTrans:
         return result_answer
 
 
-class ParserTrackMotors:
+class ParserTrackMotors(BaseParser):
     session_file = 'session_track_motors.pkl'
+    parser_name = "track_motors"
 
     def __init__(self):
         self.cur_session = requests.Session()
+        auth_data = json.load(open("authorization.json", "r"))
+        self.login = auth_data[self.parser_name]["login"]
+        self.password = auth_data[self.parser_name]["password"]
+        self.auth_url = "https://market.tmtr.ru/#/login"
+
+    @func_timer
+    def parsing_article(self, article: str):
+        chrome_options = Options()
+        chrome_options.add_argument(
+            "--headless")  # Запуск браузера в фоновом режиме (без графического интерфейса)
+        service = Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service, options=chrome_options)
+        # driver.implicitly_wait(10)
+        print("До блока try нет никаких ошибок")
+
+        # Открытие страницы авторизации
+        driver.get(self.auth_url)
+        print("страница авторизации открыта успешно")
+
+        if os.path.exists("selenium_session.pkl"):
+            driver = self.load_selenium(driver)
+            print("В драйвер подгружена информация об актуальной сессии")
+        else:
+            driver = self.auth_selenium(driver)
+            self.save_selenium(driver)
+            print("Информация о сессии сохранена в файл")
 
 
 if __name__ == "__main__":
-    parser = ParserComTrans()
-    parser.parsing_article("003310")
+    parser = ParserTrackMotors()
