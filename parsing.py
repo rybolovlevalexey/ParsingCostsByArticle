@@ -13,8 +13,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
 
@@ -278,6 +276,7 @@ class ParserComTrans:
             # Переход к защищенной странице
             driver.get(InfoRequest.search_url + f"?fnd={articles[i]}")
             print("выполнение поиска по артикулу")
+            time.sleep(InfoRequest.waiting_time)
 
             # Проверка - авторизована ли текущая сессия
             if (i == 0 and driver.find_element(By.XPATH, "//font[@color='red']") and
@@ -287,6 +286,7 @@ class ParserComTrans:
                 driver = self.selenium_auth(driver)
                 driver.get(InfoRequest.search_url + f"?fnd={articles[i]}")
                 print("выполнение поиска по артикулу после повторной регистрации")
+                time.sleep(InfoRequest.waiting_time)
                 self.save_selenium_session(driver)
                 print("обновление информации о сессии")
 
@@ -322,7 +322,4 @@ class ParserComTrans:
 
 if __name__ == "__main__":
     parser = ParserComTrans()
-    # parser.parsing_article("85696")
     parser.parsing_article("003310")
-    # print("----------")
-    # print(parser.parsing_list_articles(["003310", "00893270050", "0101057"]))
