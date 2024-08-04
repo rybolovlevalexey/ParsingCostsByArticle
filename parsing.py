@@ -35,6 +35,7 @@ class BaseParser:
     @staticmethod
     def auth_selenium(driver, authorization_dict: dict[str, str], flag_sleep=False):
         """Метод для выполнения авторизации на сайте
+        :param flag_sleep: нужна ли пауза для загрузки страницы после введения авторизационных данных
         :param driver: хром-драйвер, для которого необходимо выполнить авторизацию
         :param authorization_dict: авторизационная информация (логин, пароль) - порядок важен
             ключ - название поля для ввода логина/пароля на форме
@@ -149,7 +150,7 @@ class ParserKomTrans(BaseParser):
         print(f"Кол-во товаров найденных по артикулу {len(info_by_article)}")
         info_by_article = list(filter(lambda info_part: info_part[0] == article, info_by_article))
         print(f"Кол-во товаров с точным соответствием артикула {len(info_by_article)}")
-        info_by_article = sorted(info_by_article, key=lambda info_part: info_part[2])
+        info_by_article = sorted(info_by_article, key=lambda info_part: int(info_part[2]))
         pprint(info_by_article)
         if len(info_by_article) > 0:
             print(f"Самая низкая цена - {info_by_article[0][2]} \n"
@@ -217,7 +218,7 @@ class ParserKomTrans(BaseParser):
             info_by_article = list(filter(
                 lambda info_part: info_part[0] == articles[i], info_by_article))
             print(f"Кол-во товаров с точным соответствием артикула {len(info_by_article)}")
-            info_by_article = sorted(info_by_article, key=lambda info_part: info_part[2])
+            info_by_article = sorted(info_by_article, key=lambda info_part: int(info_part[2]))
             pprint(info_by_article)
             if len(info_by_article) > 0:
                 print(f"Самая низкая цена - {info_by_article[0][2]} \n"
@@ -245,7 +246,7 @@ class ParserTrackMotors(BaseParser):
         self._authorization_dict = {"login": auth_data[self.parser_name]["login"],
                                     "password": auth_data[self.parser_name]["password"]}
         self.auth_url = "https://market.tmtr.ru/#/login"
-        self.search_url = ""
+        # self.search_url = ""
         self.waiting_time = 10
 
     @func_timer
@@ -272,7 +273,7 @@ class ParserTrackMotors(BaseParser):
 
         info_by_article = list()
         pages_count = int(driver.find_element(By.CLASS_NAME, "mat-mdc-paginator-range-label").text.strip().split()[-1])
-        if pages_count >= 1:
+        if pages_count == 1:
             for line in driver.find_element(
                     By.XPATH, "//tbody[@role='rowgroup']").find_elements(By.TAG_NAME, "tr"):
                 try:
@@ -286,28 +287,95 @@ class ParserTrackMotors(BaseParser):
                     line_name = line.find_element(By.TAG_NAME, "td").find_elements(By.TAG_NAME, "span")[-2].text
                     line_cost = line.find_elements(By.TAG_NAME, "td")[1].find_element(
                         By.TAG_NAME, "div").find_element(By.TAG_NAME, "span").text
-                    print(line_article, line_name, line_cost)
-                    print("------")
+                    line_cost = line_cost.split()[1:-1]
+                    line_cost = "".join(line_cost)
+                    info_by_article.append([line_article, line_name, line_cost])
                 except Exception:
                     continue
         elif pages_count > 1:
-            driver.find_elements(By.CLASS_NAME, "mat-mdc-button-touch-target")[2].click()
-            driver.save_screenshot("scr3.png")
+            cur_page_number = 0
+            while cur_page_number < pages_count:
+                cur_page_number = int(driver.find_element(
+                    By.CLASS_NAME, "mat-mdc-paginator-range-label").text.strip().split()[1])
+                for line in driver.find_element(
+                        By.XPATH, "//tbody[@role='rowgroup']").find_elements(By.TAG_NAME, "tr"):
+                    try:
+                        if len(line.find_element(By.TAG_NAME, "td").find_element(
+                                By.TAG_NAME, "div").find_elements(By.CLASS_NAME, "article")) > 0:
+                            line_article = line.find_element(By.TAG_NAME, "td").find_element(
+                                By.TAG_NAME, "div").find_element(By.CLASS_NAME, "article").text
+                        else:
+                            line_article = line.find_element(By.TAG_NAME, "td").find_element(
+                                By.TAG_NAME, "div").find_element(By.CLASS_NAME, "good_article").text
+                        line_name = line.find_element(By.TAG_NAME, "td").find_elements(By.TAG_NAME, "span")[-2].text
+                        line_cost = line.find_elements(By.TAG_NAME, "td")[1].find_element(
+                            By.TAG_NAME, "div").find_element(By.TAG_NAME, "span").text
+                        line_cost = line_cost.split()[1:-1]
+                        line_cost = "".join(line_cost)
+                        info_by_article.append([line_article, line_name, line_cost])
+                    except Exception:
+                        continue
+                if cur_page_number == pages_count:
+                    break
+                driver.find_elements(By.CLASS_NAME, "mat-mdc-button-touch-target")[2].click()
+                print(cur_page_number, pages_count)
         else:
             print("Информации по данному артикулу не найдено")
             return False
 
+        pprint(info_by_article)
+        print(f"Кол-во найденных товаров по введённому артикулу {len(info_by_article)}")
         info_by_article = list(filter(lambda info_part: info_part[0] == article, info_by_article))
         print(f"Кол-во товаров с точным соответствием артикула {len(info_by_article)}")
+        info_by_article = list(map(lambda info_part: [info_part[0], info_part[1], float(info_part[2].replace(",", "."))], info_by_article))
         info_by_article = sorted(info_by_article, key=lambda info_part: info_part[2])
         pprint(info_by_article)
         if len(info_by_article) > 0:
             print(f"Самая низкая цена - {info_by_article[0][2]} \n"
                   f"самая высокая цена - {info_by_article[-1][2]}")
         else:
-            print("Информации по данному артикулу не найдено")
+            print("Информации по данному артикулу после фильтрации не найдено")
+
+
+class ParserAutoPiter(BaseParser):  # https://autopiter.ru/
+    parser_name = "auto_piter"
+
+    def __init__(self):
+        self.cur_session = requests.Session()
+        auth_data = json.load(open("authorization.json", "r"))
+        self._authorization_dict = {"login": auth_data[self.parser_name]["login"],
+                                    "password": auth_data[self.parser_name]["password"]}
+        self.auth_url = ""
+        self.search_url = ""
+        self.waiting_time = 10
+
+    def parsing_article(self, article: str):
+        user_agent = UserAgent().random
+        auth_url = "https://autopiter.ru/api/graphql"
+        search_url = f"https://autopiter.ru/api/api/searchdetails?detailNumber={article}&isFullQuery=true"
+        costs_url = "https://autopiter.ru/api/api/appraise/getcosts?"
+
+        auth_resp = self.cur_session.post(auth_url, json={"query": "mutation login($login:String!$password:String!)"
+                                                          "{login(loginForm:{login:$login password:$password})}",
+                                          "variables": self._authorization_dict},
+                                          headers={"User-Agent": user_agent})
+        resp_search = self.cur_session.get(search_url, headers={"User-Agent": user_agent})
+        search_data = json.loads(resp_search.content.decode("utf-8"))
+        for elem in search_data["data"]["catalogs"]:
+            costs_url += "idArticles=" + str(elem["id"]) + "&"
+        costs_url = costs_url[:-1]
+        print(costs_url)
+        resp_costs = self.cur_session.get(costs_url, headers={"User-Agent": user_agent})
+        pprint(json.loads(resp_costs.content))
+        all_costs = list()
+        for elem in json.loads(resp_costs.content)["data"]:
+            if elem["originalPrice"] > 0:
+                all_costs.append(elem["originalPrice"])
+        print(min(all_costs), max(all_costs))
 
 
 if __name__ == "__main__":
-    parser = ParserTrackMotors()
+    parser = ParserAutoPiter()
     parser.parsing_article("003310")  # 003310, 85696
+
+
