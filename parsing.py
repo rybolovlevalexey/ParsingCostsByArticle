@@ -1,14 +1,12 @@
-import fake_useragent
 import requests
 from fake_useragent import UserAgent
 from bs4 import BeautifulSoup
 import pickle
 import os
 from pprint import pprint
-from requests.auth import HTTPBasicAuth
-from dataclasses import dataclass
 import time
 import json
+from concurrent.futures import ThreadPoolExecutor
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -87,7 +85,7 @@ class ParserKomTrans(BaseParser):
         self.waiting_time = 15
 
     @func_timer
-    def parsing_article(self, article: str):
+    def parsing_article(self, article: str) -> None | list[int]:
         chrome_options = Options()
         chrome_options.add_argument(
             "--headless")  # Запуск браузера в фоновом режиме (без графического интерфейса)
@@ -150,13 +148,19 @@ class ParserKomTrans(BaseParser):
         print(f"Кол-во товаров найденных по артикулу {len(info_by_article)}")
         info_by_article = list(filter(lambda info_part: info_part[0] == article, info_by_article))
         print(f"Кол-во товаров с точным соответствием артикула {len(info_by_article)}")
-        info_by_article = sorted(info_by_article, key=lambda info_part: int(info_part[2]))
+        info_by_article = sorted(info_by_article, key=lambda info_part: float(info_part[2].split()[0]))
         pprint(info_by_article)
         if len(info_by_article) > 0:
             print(f"Самая низкая цена - {info_by_article[0][2]} \n"
                   f"самая высокая цена - {info_by_article[-1][2]}")
         else:
             print("Информации по данному артикулу не найдено")
+
+        if len(info_by_article) == 0:
+            return None
+        if len(info_by_article) == 1:
+            return [info_by_article[0][2]]
+        return [info_by_article[0][2], info_by_article[-1][2]]
 
     @func_timer
     def parsing_list_articles(self, articles: list[str]):
@@ -250,7 +254,7 @@ class ParserTrackMotors(BaseParser):
         self.waiting_time = 10
 
     @func_timer
-    def parsing_article(self, article: str):
+    def parsing_article(self, article: str) -> None | list[int]:
         chrome_options = Options()
         chrome_options.add_argument(
             "--headless")  # Запуск браузера в фоновом режиме (без графического интерфейса)
@@ -321,13 +325,14 @@ class ParserTrackMotors(BaseParser):
                 print(cur_page_number, pages_count)
         else:
             print("Информации по данному артикулу не найдено")
-            return False
+            return None
 
         pprint(info_by_article)
         print(f"Кол-во найденных товаров по введённому артикулу {len(info_by_article)}")
         info_by_article = list(filter(lambda info_part: info_part[0] == article, info_by_article))
         print(f"Кол-во товаров с точным соответствием артикула {len(info_by_article)}")
-        info_by_article = list(map(lambda info_part: [info_part[0], info_part[1], float(info_part[2].replace(",", "."))], info_by_article))
+        info_by_article = list(map(lambda info_part: [info_part[0], info_part[1],
+                                                      float(info_part[2].replace(",", "."))], info_by_article))
         info_by_article = sorted(info_by_article, key=lambda info_part: info_part[2])
         pprint(info_by_article)
         if len(info_by_article) > 0:
@@ -335,6 +340,12 @@ class ParserTrackMotors(BaseParser):
                   f"самая высокая цена - {info_by_article[-1][2]}")
         else:
             print("Информации по данному артикулу после фильтрации не найдено")
+
+        if len(info_by_article) == 0:
+            return None
+        if len(info_by_article) == 1:
+            return [info_by_article[0][2]]
+        return [info_by_article[0][2], info_by_article[-1][2]]
 
 
 class ParserAutoPiter(BaseParser):  # https://autopiter.ru/
@@ -349,7 +360,8 @@ class ParserAutoPiter(BaseParser):  # https://autopiter.ru/
         self.search_url = ""
         self.waiting_time = 10
 
-    def parsing_article(self, article: str):
+    @func_timer
+    def parsing_article(self, article: str) -> None | list[int]:
         user_agent = UserAgent().random
         auth_url = "https://autopiter.ru/api/graphql"
         search_url = f"https://autopiter.ru/api/api/searchdetails?detailNumber={article}&isFullQuery=true"
@@ -371,11 +383,15 @@ class ParserAutoPiter(BaseParser):  # https://autopiter.ru/
         for elem in json.loads(resp_costs.content)["data"]:
             if elem["originalPrice"] > 0:
                 all_costs.append(elem["originalPrice"])
-        print(min(all_costs), max(all_costs))
+        print("Минимальная цена -", min(all_costs), "Максимальная цена -", max(all_costs))
+
+        if len(all_costs) == 0:
+            return None
+        if len(all_costs) == 1:
+            return [all_costs[0]]
+        return [min(all_costs), max(all_costs)]
 
 
 if __name__ == "__main__":
     parser = ParserAutoPiter()
     parser.parsing_article("003310")  # 003310, 85696
-
-
