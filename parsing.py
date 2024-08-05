@@ -85,7 +85,7 @@ class ParserKomTrans(BaseParser):
         self.waiting_time = 15
 
     @func_timer
-    def parsing_article(self, article: str) -> None | list[int]:
+    def parsing_article(self, article: str) -> dict[str: None | list[int]]:
         chrome_options = Options()
         chrome_options.add_argument(
             "--headless")  # Запуск браузера в фоновом режиме (без графического интерфейса)
@@ -146,9 +146,10 @@ class ParserKomTrans(BaseParser):
                                     line.find_elements(By.TAG_NAME, "td")[2].text.strip(),
                                     line.find_elements(By.TAG_NAME, "td")[6].text.strip()])
         print(f"Кол-во товаров найденных по артикулу {len(info_by_article)}")
-        info_by_article = list(filter(lambda info_part: info_part[0] == article, info_by_article))
+        info_by_article = list(map(lambda info_elem: [info_elem[0], info_elem[1], float(info_elem[2].split()[0])],
+                                   filter(lambda info_part: info_part[0] == article, info_by_article)))
         print(f"Кол-во товаров с точным соответствием артикула {len(info_by_article)}")
-        info_by_article = sorted(info_by_article, key=lambda info_part: float(info_part[2].split()[0]))
+        info_by_article = sorted(info_by_article, key=lambda info_part: info_part[2])
         pprint(info_by_article)
         if len(info_by_article) > 0:
             print(f"Самая низкая цена - {info_by_article[0][2]} \n"
@@ -157,10 +158,10 @@ class ParserKomTrans(BaseParser):
             print("Информации по данному артикулу не найдено")
 
         if len(info_by_article) == 0:
-            return None
+            return {self.parser_name: None}
         if len(info_by_article) == 1:
-            return [info_by_article[0][2]]
-        return [info_by_article[0][2], info_by_article[-1][2]]
+            return {self.parser_name: [info_by_article[0][2]]}
+        return {self.parser_name: [info_by_article[0][2], info_by_article[-1][2]]}
 
     @func_timer
     def parsing_list_articles(self, articles: list[str]):
@@ -254,7 +255,7 @@ class ParserTrackMotors(BaseParser):
         self.waiting_time = 10
 
     @func_timer
-    def parsing_article(self, article: str) -> None | list[int]:
+    def parsing_article(self, article: str) -> dict[str: None | list[int]]:
         chrome_options = Options()
         chrome_options.add_argument(
             "--headless")  # Запуск браузера в фоновом режиме (без графического интерфейса)
@@ -342,10 +343,10 @@ class ParserTrackMotors(BaseParser):
             print("Информации по данному артикулу после фильтрации не найдено")
 
         if len(info_by_article) == 0:
-            return None
+            return {self.parser_name: None}
         if len(info_by_article) == 1:
-            return [info_by_article[0][2]]
-        return [info_by_article[0][2], info_by_article[-1][2]]
+            return {self.parser_name: [info_by_article[0][2]]}
+        return {self.parser_name: [info_by_article[0][2], info_by_article[-1][2]]}
 
 
 class ParserAutoPiter(BaseParser):  # https://autopiter.ru/
@@ -361,7 +362,7 @@ class ParserAutoPiter(BaseParser):  # https://autopiter.ru/
         self.waiting_time = 10
 
     @func_timer
-    def parsing_article(self, article: str) -> None | list[int]:
+    def parsing_article(self, article: str) -> dict[str: None | list[int]]:
         user_agent = UserAgent().random
         auth_url = "https://autopiter.ru/api/graphql"
         search_url = f"https://autopiter.ru/api/api/searchdetails?detailNumber={article}&isFullQuery=true"
@@ -386,10 +387,10 @@ class ParserAutoPiter(BaseParser):  # https://autopiter.ru/
         print("Минимальная цена -", min(all_costs), "Максимальная цена -", max(all_costs))
 
         if len(all_costs) == 0:
-            return None
+            return {self.parser_name: None}
         if len(all_costs) == 1:
-            return [all_costs[0]]
-        return [min(all_costs), max(all_costs)]
+            return {self.parser_name: [all_costs[0]]}
+        return {self.parser_name: [min(all_costs), max(all_costs)]}
 
 
 if __name__ == "__main__":
