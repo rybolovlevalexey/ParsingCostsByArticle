@@ -1,15 +1,18 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, File, UploadFile
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from parsing import ParserKomTrans, ParserTrackMotors, ParserAutoPiter
 from concurrent.futures import ThreadPoolExecutor
+import pandas as pd
+from io import BytesIO
 
 
 app = FastAPI(title="Parsing product costs by its article",
               version="1.0.0")
 
 
-@app.get("/get_costs/{article}")
-def get_costs(article: str):
+@app.get("/costs_by_article/{article}")
+def get_costs_by_article(article: str):
     with ThreadPoolExecutor(max_workers=3) as executor:
         parser1, parser2, parser3 = ParserKomTrans(), ParserTrackMotors(), ParserAutoPiter()
         futures = [
@@ -21,6 +24,44 @@ def get_costs(article: str):
     return {"article": article, "costs": results}
 
 
-# if __name__ == "__main__":
-#     import uvicorn
-#     uvicorn.run(app, host="127.0.0.1", port=8000)
+@app.post("/costs_by_file")
+def post_costs_by_file(file: UploadFile = File(...)):
+    content_file = file.file.read()
+    data_frame = pd.read_excel(BytesIO(content_file))
+    rows, cols = data_frame.shape
+
+    for index, row in data_frame.iterrows():
+        row_article = row.iloc[0]
+        try:
+            with ThreadPoolExecutor(max_workers=3) as executor:
+                parser1, parser2, parser3 = ParserKomTrans(), ParserTrackMotors(), ParserAutoPiter()
+                futures = [
+                    executor.submit(parser1.parsing_article, row_article),
+                    executor.submit(parser2.parsing_article, row_article),
+                    executor.submit(parser3.parsing_article, row_article)
+                ]
+                results = [future.result() for future in futures]
+        except Exception:
+            print("ПРОИЗОШЛА ОШИБКА ПРИ ПАРСИНГЕ")
+            continue
+        print(results)
+        for elem in results:
+            if list(elem.values())[0] is None:
+                data_frame.at[index, list(elem.keys())[0]] = list(elem.values())[0]
+            elif len(list(elem.values())[0]) == 1:
+                data_frame.at[index, list(elem.keys())[0]] = list(elem.values())[0][0]
+            else:
+                data_frame.at[index, list(elem.keys())[0]] = "-".join(list(map(str, list(elem.values())[0])))
+
+    data_frame.to_excel("остатки_updated.xlsx", index=False)
+    return {"done": True}
+
+
+@app.get("/")
+def get_index():
+    return {"index": "done"}
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="127.0.0.1", port=8000)

@@ -72,7 +72,7 @@ class BaseParser:
             pickle.dump(cookies, file)
 
 
-class ParserKomTrans(BaseParser):
+class ParserKomTrans(BaseParser):  # https://www.comtt.ru/
     parser_name = "kom_trans"
 
     def __init__(self):
@@ -237,7 +237,7 @@ class ParserKomTrans(BaseParser):
         return result_answer
 
 
-class ParserTrackMotors(BaseParser):
+class ParserTrackMotors(BaseParser):  # https://market.tmtr.ru
     parser_name = "track_motors"
 
     # session = requests.Session()
@@ -277,7 +277,11 @@ class ParserTrackMotors(BaseParser):
         time.sleep(self.waiting_time)
 
         info_by_article = list()
-        pages_count = int(driver.find_element(By.CLASS_NAME, "mat-mdc-paginator-range-label").text.strip().split()[-1])
+        try:
+            pages_count = int(driver.find_element(By.CLASS_NAME,
+                                                  "mat-mdc-paginator-range-label").text.strip().split()[-1])
+        except Exception:  # не нашёл информации о количестве страниц, следовательно ответ пустой
+            return {self.parser_name: None}
         if pages_count == 1:
             for line in driver.find_element(
                     By.XPATH, "//tbody[@role='rowgroup']").find_elements(By.TAG_NAME, "tr"):
@@ -322,11 +326,14 @@ class ParserTrackMotors(BaseParser):
                         continue
                 if cur_page_number == pages_count:
                     break
-                driver.find_elements(By.CLASS_NAME, "mat-mdc-button-touch-target")[2].click()
-                print(cur_page_number, pages_count)
+                try:
+                    driver.find_elements(By.CLASS_NAME, "mat-mdc-button-touch-target")[2].click()
+                    print(cur_page_number, pages_count)
+                except Exception:
+                    continue
         else:
             print("Информации по данному артикулу не найдено")
-            return None
+            return {self.parser_name: None}
 
         pprint(info_by_article)
         print(f"Кол-во найденных товаров по введённому артикулу {len(info_by_article)}")
@@ -384,8 +391,6 @@ class ParserAutoPiter(BaseParser):  # https://autopiter.ru/
         for elem in json.loads(resp_costs.content)["data"]:
             if elem["originalPrice"] > 0:
                 all_costs.append(elem["originalPrice"])
-        print("Минимальная цена -", min(all_costs), "Максимальная цена -", max(all_costs))
-
         if len(all_costs) == 0:
             return {self.parser_name: None}
         if len(all_costs) == 1:
@@ -394,5 +399,7 @@ class ParserAutoPiter(BaseParser):  # https://autopiter.ru/
 
 
 if __name__ == "__main__":
-    parser = ParserAutoPiter()
-    parser.parsing_article("003310")  # 003310, 85696
+    parser1 = ParserKomTrans()
+    parser2 = ParserTrackMotors()
+    parser3 = ParserAutoPiter()
+    print(parser2.parsing_article("00-00000114"))  # 003310, 85696
