@@ -9,7 +9,7 @@ def test__articles():
 
 
 def test_files():
-    url = "http://127.0.0.1:8000/costs_by_file"
+    url = "http://127.0.0.1:8000/costs_by_file_futures"
     file_path = "Остатки_bigger_short.xlsx"
 
     with open(file_path, "rb") as file:
