@@ -7,6 +7,7 @@ import pandas as pd
 from io import BytesIO
 import threading
 import multiprocessing
+import uvicorn
 
 
 app = FastAPI(title="Parsing product costs by its article",
@@ -140,6 +141,29 @@ def post_costs_by_file_futures(file: UploadFile = File(...)):
     return {"done": True}
 
 
+@app.post("/costs_by_massive_articles/")
+def create_items(items: list[str]):
+    def parsing_func(article):
+        try:
+            with ThreadPoolExecutor(max_workers=3) as executor:
+                parser1, parser2, parser3 = ParserKomTrans(), ParserTrackMotors(), ParserAutoPiter()
+                futures = [
+                    executor.submit(parser1.parsing_article, article),
+                    executor.submit(parser2.parsing_article, article),
+                    executor.submit(parser3.parsing_article, article)
+                ]
+                results = [future.result() for future in futures]
+        except Exception:
+            print("ПРОИЗОШЛА ОШИБКА ПРИ ПАРСИНГЕ")
+            return
+        print(results)
+        return results
+
+    with ThreadPoolExecutor() as pool_executor:
+        pool_results = list(pool_executor.map(parsing_func, items))
+    return {"results": pool_results}
+
+
 @app.get("/")
 def get_index():
     return {"index": "done"}
@@ -149,6 +173,5 @@ def get_index():
 # ускорение обработки файла вариант через threading, время работы - 1 минута 20 секунд
 # multiprocessing ускорения не выдал
 # concurrent.futures ускорил время работы до 50 секунд
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+# if __name__ == "__main__":
+#     uvicorn.run(app, host="127.0.0.1", port=8000)

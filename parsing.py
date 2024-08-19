@@ -402,4 +402,4 @@ if __name__ == "__main__":
     parser1 = ParserKomTrans()
     parser2 = ParserTrackMotors()
     parser3 = ParserAutoPiter()
-    print(parser2.parsing_article("00-00000114"))  # 003310, 85696
+    print(parser1.parsing_article("003310"))  # 003310, 85696, 00-00000114
