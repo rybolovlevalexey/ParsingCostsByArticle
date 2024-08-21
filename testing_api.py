@@ -1,3 +1,5 @@
+import json
+
 import requests
 from pprint import pprint
 
@@ -23,7 +25,7 @@ def test_files():
 
 
 def test_massive_articles():
-    url = "http://127.0.0.1:8000/costs_by_massive_articles/"
+    url = "http://127.0.0.1:8000/post_costs_by_massive_articles/"
     data = ["00-00000114", "003310", "85696"]
 
     response = requests.post(url, json=data)
@@ -31,7 +33,7 @@ def test_massive_articles():
 
 
 def test_online_massive():
-    url = "https://parse-costs-rybolovlevalexey.amvera.io/costs_by_massive_articles/"
+    url = "https://parse-costs-rybolovlevalexey.amvera.io/post_costs_by_massive_articles/"
     data = ["00-00000114", "003310", "85696"]
 
     response = requests.post(url, json=data)
@@ -47,4 +49,20 @@ def test_online_one_art():
     pprint(resp.content)
 
 
-test_files()
+def test_selectively():
+    url = "http://127.0.0.1:8000/costs_by_file_selectively"
+    file_path = "укороченный новый файл.xlsx"
+
+    data = {
+        "parsers_on": {
+            "kom_trans": False,
+            "track_motors": False,
+            "auto_piter": True
+        }
+    }
+    response = requests.post(url, data={"info": json.dumps(data)},
+                             files={"file": open(file_path, "rb")})
+    print(response.content)
+
+
+test_selectively()

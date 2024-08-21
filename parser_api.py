@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, File, UploadFile
+from fastapi import FastAPI, HTTPException, File, UploadFile, Form
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from parsing import ParserKomTrans, ParserTrackMotors, ParserAutoPiter
@@ -8,6 +8,7 @@ from io import BytesIO
 import threading
 import multiprocessing
 import uvicorn
+import json
 
 
 app = FastAPI(title="Parsing product costs by its article",
@@ -104,7 +105,7 @@ def post_costs_by_file_threading(file: UploadFile = File(...)):
 
 
 @app.post("/costs_by_file_fastest")
-def post_costs_by_file_futures(file: UploadFile = File(...)):
+def post_costs_by_file_fastest(file: UploadFile = File(...)):
     def parsing_func(row_art, ind):
         try:
             with ThreadPoolExecutor(max_workers=3) as executor:
@@ -142,7 +143,7 @@ def post_costs_by_file_futures(file: UploadFile = File(...)):
 
 
 @app.post("/costs_by_massive_articles/")
-def create_items(items: list[str]):
+def post_costs_by_massive_articles(items: list[str]):
     def parsing_func(article):
         try:
             with ThreadPoolExecutor(max_workers=3) as executor:
@@ -162,6 +163,33 @@ def create_items(items: list[str]):
     with ThreadPoolExecutor() as pool_executor:
         pool_results = list(pool_executor.map(parsing_func, items))
     return {"results": pool_results}
+
+
+@app.post("/costs_by_file_selectively/")
+def post_costs_by_file_selectively(info: str = Form(...), file: UploadFile = File(...)):
+    content_file = file.file.read()
+    file_name_output = "".join(file.filename.split(".")[0:-1]).strip() + " updated." + file.filename.split(".")[-1]
+    data_frame = pd.read_excel(BytesIO(content_file))
+    additional_info = json.loads(info)
+
+    if (additional_info["parsers_on"]["auto_piter"] and
+            not additional_info["parsers_on"]["kom_trans"] and
+            not additional_info["parsers_on"]["track_motors"]):
+        for index, row in data_frame.iterrows():
+            row_article = row.iloc[0]
+            parser = ParserAutoPiter()
+            results = [parser.parsing_article(row_article)]
+            print(results)
+            for elem in results:
+                if list(elem.values())[0] is None:
+                    data_frame.at[index, list(elem.keys())[0]] = list(elem.values())[0]
+                elif len(list(elem.values())[0]) == 1:
+                    data_frame.at[index, list(elem.keys())[0]] = list(elem.values())[0][0]
+                else:
+                    data_frame.at[index, list(elem.keys())[0]] = "-".join(list(map(str, list(elem.values())[0])))
+
+        data_frame.to_excel(file_name_output, index=False)
+        return {"done": True}
 
 
 @app.get("/")
