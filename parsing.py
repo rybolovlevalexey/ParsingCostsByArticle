@@ -7,6 +7,7 @@ from pprint import pprint
 import time
 import json
 from concurrent.futures import ThreadPoolExecutor
+from requests_html import HTMLSession
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -132,8 +133,8 @@ class ParserKomTrans(BaseParser):  # https://www.comtt.ru/
         print("начат парсинг")
         # сохранение в html файл ответа для дальнейших проверок
         html_source = driver.page_source
-        with open('page.html', 'w', encoding='utf-8') as file:
-            file.write(html_source)
+        # with open('page.html', 'w', encoding='utf-8') as file:
+        #     file.write(html_source)
 
         content = driver.find_element(By.TAG_NAME, 'body')
         tag_name = "tbody"
@@ -236,6 +237,21 @@ class ParserKomTrans(BaseParser):  # https://www.comtt.ru/
                 result_answer[articles[i]] = [info_by_article[0][2], info_by_article[-1][2]]
         return result_answer
 
+    @func_timer
+    def parsing_article_faster(self, article: str):
+        session = HTMLSession()
+        session.browser = session.browser(executable_path=r"C:\Users\Alexey\Downloads\chrome-win")
+        resp_auth = session.post(self.auth_url, data=self._authorization_dict)
+        if int(resp_auth.status_code) != 200:
+            return {"done": False, "text": "Регистрация не пройдена"}
+
+        print("Регистрация пройдена")
+        response = session.get(self.search_url, params={"fnd": article})
+        print(response.text)
+        response.html.render(sleep=5)
+        title = response.html.find('title', first=True)
+        print(title)
+
 
 class ParserTrackMotors(BaseParser):  # https://market.tmtr.ru
     parser_name = "track_motors"
@@ -278,6 +294,9 @@ class ParserTrackMotors(BaseParser):  # https://market.tmtr.ru
 
         info_by_article = list()
         try:
+            if len(driver.find_elements(By.CLASS_NAME, "mat-mdc-paginator-range-label")) == 0:
+                print("на странице не была найдена информация, ждём ещё 5 сек")
+                time.sleep(self.waiting_time)
             pages_count = int(driver.find_element(By.CLASS_NAME,
                                                   "mat-mdc-paginator-range-label").text.strip().split()[-1])
         except Exception:  # не нашёл информации о количестве страниц, следовательно ответ пустой
@@ -402,4 +421,5 @@ if __name__ == "__main__":
     parser1 = ParserKomTrans()
     parser2 = ParserTrackMotors()
     parser3 = ParserAutoPiter()
-    print(parser1.parsing_article("003310"))  # 003310, 85696, 00-00000114
+    # print(parser1.parsing_article("003310"))  # 003310, 85696, 00-00000114, 40119
+    parser1.parsing_article_faster("003310")

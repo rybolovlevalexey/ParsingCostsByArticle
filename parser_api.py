@@ -45,7 +45,7 @@ def post_costs_by_file(file: UploadFile = File(...)):
                 ]
                 results = [future.result() for future in futures]
         except Exception:
-            print("ПРОИЗОШЛА ОШИБКА ПРИ ПАРСИНГЕ")
+            print(f"ПРОИЗОШЛА ОШИБКА ПРИ ПАРСИНГЕ article={row_article}")
             continue
         print(results)
         for elem in results:
@@ -56,7 +56,7 @@ def post_costs_by_file(file: UploadFile = File(...)):
             else:
                 data_frame.at[index, list(elem.keys())[0]] = "-".join(list(map(str, list(elem.values())[0])))
 
-    data_frame.to_excel("остатки_updated.xlsx", index=False)
+    data_frame.to_excel("новый_файл_updated.xlsx", index=False)
     return {"done": True}
 
 
@@ -73,7 +73,7 @@ def post_costs_by_file_threading(file: UploadFile = File(...)):
                 ]
                 results = [future.result() for future in futures]
         except Exception:
-            print("ПРОИЗОШЛА ОШИБКА ПРИ ПАРСИНГЕ")
+            print(f"ПРОИЗОШЛА ОШИБКА ПРИ ПАРСИНГЕ article={row_art}")
             return
         print(results)
         for elem in results:
@@ -103,7 +103,7 @@ def post_costs_by_file_threading(file: UploadFile = File(...)):
     return {"done": True}
 
 
-@app.post("/costs_by_file_futures")
+@app.post("/costs_by_file_fastest")
 def post_costs_by_file_futures(file: UploadFile = File(...)):
     def parsing_func(row_art, ind):
         try:
@@ -116,7 +116,7 @@ def post_costs_by_file_futures(file: UploadFile = File(...)):
                 ]
                 results = [future.result() for future in futures]
         except Exception:
-            print("ПРОИЗОШЛА ОШИБКА ПРИ ПАРСИНГЕ")
+            print(f"ПРОИЗОШЛА ОШИБКА ПРИ ПАРСИНГЕ article={row_art}")
             return
         print(results)
         for elem in results:
@@ -154,7 +154,7 @@ def create_items(items: list[str]):
                 ]
                 results = [future.result() for future in futures]
         except Exception:
-            print("ПРОИЗОШЛА ОШИБКА ПРИ ПАРСИНГЕ")
+            print(f"ПРОИЗОШЛА ОШИБКА ПРИ ПАРСИНГЕ article={article}")
             return
         print(results)
         return results
@@ -173,5 +173,5 @@ def get_index():
 # ускорение обработки файла вариант через threading, время работы - 1 минута 20 секунд
 # multiprocessing ускорения не выдал
 # concurrent.futures ускорил время работы до 50 секунд
-# if __name__ == "__main__":
-#     uvicorn.run(app, host="127.0.0.1", port=8000)
+if __name__ == "__main__":
+    uvicorn.run(app, host="127.0.0.1", port=8000)

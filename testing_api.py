@@ -9,8 +9,10 @@ def test_articles():
 
 
 def test_files():
-    url = "http://127.0.0.1:8000/costs_by_file_futures"
-    file_path = "Остатки_bigger_short.xlsx"
+    url = "http://127.0.0.1:8000/costs_by_file"
+    url_faster = "http://127.0.0.1:8000/costs_by_file_costs_by_file_fastest"
+
+    file_path = "укороченный новый файл.xlsx"
 
     with open(file_path, "rb") as file:
         files = {"file": file}
@@ -40,9 +42,9 @@ def test_online_massive():
 def test_online_one_art():
     url1 = "https://parse-costs-rybolovlevalexey.amvera.io/costs_by_article/003310"
     url2 = "https://parse-costs-rybolovlevalexey.amvera.io/"
-    resp = requests.get(url2)
+    resp = requests.get(url1)
     print(resp)
     pprint(resp.content)
 
 
-test_online_one_art()
+test_files()
