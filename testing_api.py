@@ -51,7 +51,7 @@ def test_online_one_art():
 
 def test_selectively():
     url = "http://127.0.0.1:8000/costs_by_file_selectively"
-    file_path = "укороченный новый файл.xlsx"
+    file_path = "Ост 20240820.xls"
 
     data = {
         "parsers_on": {

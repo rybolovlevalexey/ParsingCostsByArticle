@@ -1,3 +1,5 @@
+import time
+
 from fastapi import FastAPI, HTTPException, File, UploadFile, Form
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -171,25 +173,44 @@ def post_costs_by_file_selectively(info: str = Form(...), file: UploadFile = Fil
     file_name_output = "".join(file.filename.split(".")[0:-1]).strip() + " updated." + file.filename.split(".")[-1]
     data_frame = pd.read_excel(BytesIO(content_file))
     additional_info = json.loads(info)
+    rows, cols = data_frame.shape
+    dict_codes_result = dict()
 
     if (additional_info["parsers_on"]["auto_piter"] and
             not additional_info["parsers_on"]["kom_trans"] and
             not additional_info["parsers_on"]["track_motors"]):
         for index, row in data_frame.iterrows():
+            time.sleep(5)
+            if int(index) % 10 == 0 and int(index) != 0:
+                print(f"ПРОГРЕСС ПАРСИНГА {index} из {rows}. Отчёт об ошибках - {dict_codes_result}")
+            if int(index) % 100 == 0 and int(index) != 0:
+                print("Сохранён новый промежуточный файл")
+                data_frame.to_excel(str(int(index) // 100) + file_name_output + "x", index=False)
             row_article = row.iloc[0]
+            row_prod = row.iloc[2]
             parser = ParserAutoPiter()
-            results = [parser.parsing_article(row_article)]
-            print(results)
-            for elem in results:
-                if list(elem.values())[0] is None:
-                    data_frame.at[index, list(elem.keys())[0]] = list(elem.values())[0]
-                elif len(list(elem.values())[0]) == 1:
-                    data_frame.at[index, list(elem.keys())[0]] = list(elem.values())[0][0]
-                else:
-                    data_frame.at[index, list(elem.keys())[0]] = "-".join(list(map(str, list(elem.values())[0])))
+            elem = parser.parsing_article(row_article, row_prod)
+            print(elem)
+
+            if "no_data" in elem and elem["no_data"]:
+                dict_codes_result["409"] = dict_codes_result.get("409", 0) + 1
+                continue
+            if "stop_flag" in elem and elem["stop_flag"]:
+                dict_codes_result["429"] = dict_codes_result.get("429", 0) + 1
+                print("Web Api url blocked, ЖДЁМ МИНУТУ")
+                time.sleep(60)
+                continue
+
+            dict_codes_result["200"] = dict_codes_result.get("200", 0) + 1
+            if list(elem.values())[0] is None:
+                data_frame.at[index, list(elem.keys())[0]] = list(elem.values())[0]
+            elif len(list(elem.values())[0]) == 1:
+                data_frame.at[index, list(elem.keys())[0]] = list(elem.values())[0][0]
+            else:
+                data_frame.at[index, list(elem.keys())[0]] = "-".join(list(map(str, list(elem.values())[0])))
 
         data_frame.to_excel(file_name_output, index=False)
-        return {"done": True}
+        return {"done": True, "codes_counter": dict_codes_result}
 
 
 @app.get("/")

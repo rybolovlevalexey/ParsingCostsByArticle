@@ -388,7 +388,7 @@ class ParserAutoPiter(BaseParser):  # https://autopiter.ru/
         self.waiting_time = 10
 
     @func_timer
-    def parsing_article(self, article: str) -> dict[str: None | list[int]]:
+    def parsing_article(self, article: str, producer: str | None = None) -> dict[str: None | list[int]]:
         user_agent = UserAgent().random
         auth_url = "https://autopiter.ru/api/graphql"
         search_url = f"https://autopiter.ru/api/api/searchdetails?detailNumber={article}&isFullQuery=true"
@@ -400,13 +400,22 @@ class ParserAutoPiter(BaseParser):  # https://autopiter.ru/
                                           headers={"User-Agent": user_agent})
         resp_search = self.cur_session.get(search_url, headers={"User-Agent": user_agent})
         search_data = json.loads(resp_search.content.decode("utf-8"))
+        # pprint(search_data)
         for elem in search_data["data"]["catalogs"]:
-            costs_url += "idArticles=" + str(elem["id"]) + "&"
+            if (producer is not None and "catalogName" in elem and producer.lower() == elem["catalogName"].lower()
+                    or producer is None):
+                costs_url += "idArticles=" + str(elem["id"]) + "&"
         costs_url = costs_url[:-1]
-        print(costs_url)
         resp_costs = self.cur_session.get(costs_url, headers={"User-Agent": user_agent})
-        pprint(json.loads(resp_costs.content))
+        json_content = json.loads(resp_costs.content)
+        pprint(json_content)
         all_costs = list()
+        print(search_url, costs_url)
+        print("------------")
+        if "code" in json_content and json_content["code"] == "429":
+            return {"stop_flag": True}
+        if "data" not in json_content:
+            return {"no_data": True}
         for elem in json.loads(resp_costs.content)["data"]:
             if elem["originalPrice"] > 0:
                 all_costs.append(elem["originalPrice"])
@@ -421,5 +430,5 @@ if __name__ == "__main__":
     parser1 = ParserKomTrans()
     parser2 = ParserTrackMotors()
     parser3 = ParserAutoPiter()
-    # print(parser1.parsing_article("003310"))  # 003310, 85696, 00-00000114, 40119
-    parser1.parsing_article_faster("003310")
+    print(parser3.parsing_article("30219", "BRINGER LIGHT"))  # 003310, 85696, 00-00000114, 40119
+    # parser1.parsing_article_faster("003310")
