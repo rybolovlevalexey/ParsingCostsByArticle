@@ -81,4 +81,5 @@ def test_selectively_kom_trans():
     print(response.content)
 
 
-test_selectively_auto_piter()
+# test_selectively_auto_piter()
+test_articles()

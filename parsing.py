@@ -289,64 +289,69 @@ class ParserTrackMotors(BaseParser):  # https://market.tmtr.ru
         self._authorization_dict = {"login": auth_data[self.parser_name]["login"],
                                     "password": auth_data[self.parser_name]["password"]}
         self.auth_url = "https://market.tmtr.ru/#/login"
-        # self.search_url = ""
+        self.search_url = "http://api.tmtr.ru/API.asmx/Proboy"
         self.waiting_time = 10
 
     @func_timer
-    def parsing_article(self, article: str) -> dict[str: None | list[int]]:
-        chrome_options = Options()
-        chrome_options.add_argument(
-            "--headless")  # Запуск браузера в фоновом режиме (без графического интерфейса)
-        service = Service(ChromeDriverManager().install())
-        driver = webdriver.Chrome(service=service, options=chrome_options)
-        # driver.implicitly_wait(10)
-        print("До блока try нет никаких ошибок")
+    def parsing_article(self, article: str, producer: str | None = None,
+                        api_version: bool = True) -> dict[str: None | list[float]]:
+        if api_version:
+            # надо учесть, что бренд может быть None
+            if producer is None:
+                print("Без информации о необходимом производителе невозможно получить однозначную информацию")
+                return {self.parser_name: None}
+            resp = requests.post(self.search_url, headers=self._authorization_dict,
+                                 json={"article": article, "brand": producer})
+            if resp.status_code == 200:
+                print(f"Получен корректный ответ по артикулу {article} в парсере {self.parser_name}")
+            else:
+                print(f"Получен НЕ корректный ответ по артикулу {article} в парсере {self.parser_name}")
+            # pprint(json.dumps(resp.content.decode("utf-8")))
+            if resp.text.endswith('{"d":null}'):
+                resp_content = resp.text[:-10]
+            else:
+                resp_content = resp.text
+            json_data = json.loads(resp_content)
+            all_costs = list(float(elem["Price"]) for elem in json_data)
+            print(f"Цены в парсере {self.parser_name} обработаны успешно: "
+                  f"минимум - {min(all_costs)}, максимум - {max(all_costs)}")
+            if len(all_costs) == 0:
+                return {self.parser_name: None}
+            if len(all_costs) == 1:
+                return {self.parser_name: all_costs}
+            return {self.parser_name: [min(all_costs), max(all_costs)]}
 
-        # Открытие страницы авторизации
-        driver.get(self.auth_url)
-        print("страница авторизации открыта успешно")
-        driver = self.auth_selenium(driver, self._authorization_dict, flag_sleep=True)
-        print("Произведена авторизация и информация сохранена в файл")
-        self.save_selenium(driver, self.parser_name)
-        art_input = driver.find_element(By.NAME, "q")
+        else:
+            chrome_options = Options()
+            chrome_options.add_argument(
+                "--headless")  # Запуск браузера в фоновом режиме (без графического интерфейса)
+            service = Service(ChromeDriverManager().install())
+            driver = webdriver.Chrome(service=service, options=chrome_options)
+            # driver.implicitly_wait(10)
+            print("До блока try нет никаких ошибок")
 
-        art_input.send_keys(article)
-        art_input.send_keys(Keys.ENTER)
-        time.sleep(self.waiting_time)
+            # Открытие страницы авторизации
+            driver.get(self.auth_url)
+            print("страница авторизации открыта успешно")
+            driver = self.auth_selenium(driver, self._authorization_dict, flag_sleep=True)
+            print("Произведена авторизация и информация сохранена в файл")
+            self.save_selenium(driver, self.parser_name)
+            art_input = driver.find_element(By.NAME, "q")
 
-        info_by_article = list()
-        try:
-            if len(driver.find_elements(By.CLASS_NAME, "mat-mdc-paginator-range-label")) == 0:
-                print("на странице не была найдена информация, ждём ещё 5 сек")
-                time.sleep(self.waiting_time)
-            pages_count = int(driver.find_element(By.CLASS_NAME,
-                                                  "mat-mdc-paginator-range-label").text.strip().split()[-1])
-        except Exception:  # не нашёл информации о количестве страниц, следовательно ответ пустой
-            return {self.parser_name: None}
-        if pages_count == 1:
-            for line in driver.find_element(
-                    By.XPATH, "//tbody[@role='rowgroup']").find_elements(By.TAG_NAME, "tr"):
-                try:
-                    if len(line.find_element(By.TAG_NAME, "td").find_element(
-                            By.TAG_NAME, "div").find_elements(By.CLASS_NAME, "article")) > 0:
-                        line_article = line.find_element(By.TAG_NAME, "td").find_element(
-                            By.TAG_NAME, "div").find_element(By.CLASS_NAME, "article").text
-                    else:
-                        line_article = line.find_element(By.TAG_NAME, "td").find_element(
-                            By.TAG_NAME, "div").find_element(By.CLASS_NAME, "good_article").text
-                    line_name = line.find_element(By.TAG_NAME, "td").find_elements(By.TAG_NAME, "span")[-2].text
-                    line_cost = line.find_elements(By.TAG_NAME, "td")[1].find_element(
-                        By.TAG_NAME, "div").find_element(By.TAG_NAME, "span").text
-                    line_cost = line_cost.split()[1:-1]
-                    line_cost = "".join(line_cost)
-                    info_by_article.append([line_article, line_name, line_cost])
-                except Exception:
-                    continue
-        elif pages_count > 1:
-            cur_page_number = 0
-            while cur_page_number < pages_count:
-                cur_page_number = int(driver.find_element(
-                    By.CLASS_NAME, "mat-mdc-paginator-range-label").text.strip().split()[1])
+            art_input.send_keys(article)
+            art_input.send_keys(Keys.ENTER)
+            time.sleep(self.waiting_time)
+
+            info_by_article = list()
+            try:
+                if len(driver.find_elements(By.CLASS_NAME, "mat-mdc-paginator-range-label")) == 0:
+                    print("на странице не была найдена информация, ждём ещё 5 сек")
+                    time.sleep(self.waiting_time)
+                pages_count = int(driver.find_element(By.CLASS_NAME,
+                                                      "mat-mdc-paginator-range-label").text.strip().split()[-1])
+            except Exception:  # не нашёл информации о количестве страниц, следовательно ответ пустой
+                return {self.parser_name: None}
+            if pages_count == 1:
                 for line in driver.find_element(
                         By.XPATH, "//tbody[@role='rowgroup']").find_elements(By.TAG_NAME, "tr"):
                     try:
@@ -365,36 +370,76 @@ class ParserTrackMotors(BaseParser):  # https://market.tmtr.ru
                         info_by_article.append([line_article, line_name, line_cost])
                     except Exception:
                         continue
-                if cur_page_number == pages_count:
-                    break
-                try:
-                    driver.find_elements(By.CLASS_NAME, "mat-mdc-button-touch-target")[2].click()
-                    print(cur_page_number, pages_count)
-                except Exception:
-                    continue
-        else:
-            print("Информации по данному артикулу не найдено")
-            return {self.parser_name: None}
+            elif pages_count > 1:
+                cur_page_number = 0
+                while cur_page_number < pages_count:
+                    cur_page_number = int(driver.find_element(
+                        By.CLASS_NAME, "mat-mdc-paginator-range-label").text.strip().split()[1])
+                    for line in driver.find_element(
+                            By.XPATH, "//tbody[@role='rowgroup']").find_elements(By.TAG_NAME, "tr"):
+                        try:
+                            if len(line.find_element(By.TAG_NAME, "td").find_element(
+                                    By.TAG_NAME, "div").find_elements(By.CLASS_NAME, "article")) > 0:
+                                line_article = line.find_element(By.TAG_NAME, "td").find_element(
+                                    By.TAG_NAME, "div").find_element(By.CLASS_NAME, "article").text
+                            else:
+                                line_article = line.find_element(By.TAG_NAME, "td").find_element(
+                                    By.TAG_NAME, "div").find_element(By.CLASS_NAME, "good_article").text
+                            line_name = line.find_element(By.TAG_NAME, "td").find_elements(By.TAG_NAME, "span")[-2].text
+                            line_cost = line.find_elements(By.TAG_NAME, "td")[1].find_element(
+                                By.TAG_NAME, "div").find_element(By.TAG_NAME, "span").text
+                            line_cost = line_cost.split()[1:-1]
+                            line_cost = "".join(line_cost)
+                            info_by_article.append([line_article, line_name, line_cost])
+                        except Exception:
+                            continue
+                    if cur_page_number == pages_count:
+                        break
+                    try:
+                        driver.find_elements(By.CLASS_NAME, "mat-mdc-button-touch-target")[2].click()
+                        print(cur_page_number, pages_count)
+                    except Exception:
+                        continue
+            else:
+                print("Информации по данному артикулу не найдено")
+                return {self.parser_name: None}
 
-        pprint(info_by_article)
-        print(f"Кол-во найденных товаров по введённому артикулу {len(info_by_article)}")
-        info_by_article = list(filter(lambda info_part: info_part[0] == article, info_by_article))
-        print(f"Кол-во товаров с точным соответствием артикула {len(info_by_article)}")
-        info_by_article = list(map(lambda info_part: [info_part[0], info_part[1],
-                                                      float(info_part[2].replace(",", "."))], info_by_article))
-        info_by_article = sorted(info_by_article, key=lambda info_part: info_part[2])
-        pprint(info_by_article)
-        if len(info_by_article) > 0:
-            print(f"Самая низкая цена - {info_by_article[0][2]} \n"
-                  f"самая высокая цена - {info_by_article[-1][2]}")
-        else:
-            print("Информации по данному артикулу после фильтрации не найдено")
+            pprint(info_by_article)
+            print(f"Кол-во найденных товаров по введённому артикулу {len(info_by_article)}")
+            info_by_article = list(filter(lambda info_part: info_part[0] == article, info_by_article))
+            print(f"Кол-во товаров с точным соответствием артикула {len(info_by_article)}")
+            info_by_article = list(map(lambda info_part: [info_part[0], info_part[1],
+                                                          float(info_part[2].replace(",", "."))], info_by_article))
+            info_by_article = sorted(info_by_article, key=lambda info_part: info_part[2])
+            pprint(info_by_article)
+            if len(info_by_article) > 0:
+                print(f"Самая низкая цена - {info_by_article[0][2]} \n"
+                      f"самая высокая цена - {info_by_article[-1][2]}")
+            else:
+                print("Информации по данному артикулу после фильтрации не найдено")
 
-        if len(info_by_article) == 0:
+            if len(info_by_article) == 0:
+                return {self.parser_name: None}
+            if len(info_by_article) == 1:
+                return {self.parser_name: [info_by_article[0][2]]}
+            return {self.parser_name: [info_by_article[0][2], info_by_article[-1][2]]}
+
+    @func_timer
+    def parsing_article_api(self, article: str, producer: str) -> dict[str: None | list[int]]:
+        resp = requests.post(self.search_url, headers=self._authorization_dict,
+                             json={"article": article, "brand": producer})
+        # pprint(json.dumps(resp.content.decode("utf-8")))
+        if resp.text.endswith('{"d":null}'):
+            resp_content = resp.text[:-10]
+        else:
+            resp_content = resp.text
+        json_data = json.loads(resp_content)
+        all_costs = list(float(elem["Price"]) for elem in json_data)
+        if len(all_costs) == 0:
             return {self.parser_name: None}
-        if len(info_by_article) == 1:
-            return {self.parser_name: [info_by_article[0][2]]}
-        return {self.parser_name: [info_by_article[0][2], info_by_article[-1][2]]}
+        if len(all_costs) == 1:
+            return {self.parser_name: all_costs}
+        return {self.parser_name: [min(all_costs), max(all_costs)]}
 
 
 class ParserAutoPiter(BaseParser):  # https://autopiter.ru/
@@ -405,14 +450,13 @@ class ParserAutoPiter(BaseParser):  # https://autopiter.ru/
         auth_data = json.load(open("authorization.json", "r"))
         self._authorization_dict = {"login": auth_data[self.parser_name]["login"],
                                     "password": auth_data[self.parser_name]["password"]}
-        self.auth_url = ""
-        self.search_url = ""
+        self.auth_url = "https://autopiter.ru/api/graphql"
+        # self.search_url = ""
         self.waiting_time = 10
 
     @func_timer
     def parsing_article(self, article: str, producer: str | None = None) -> dict[str: None | list[int]]:
         user_agent = UserAgent().random
-        auth_url = "https://autopiter.ru/api/graphql"
         search_url = f"https://autopiter.ru/api/api/searchdetails?detailNumber={article}&isFullQuery=true"
         costs_url = "https://autopiter.ru/api/api/appraise/getcosts?"
 
@@ -423,7 +467,7 @@ class ParserAutoPiter(BaseParser):  # https://autopiter.ru/
                 producer = producer.replace(",", ";")
             producer = list(filter(lambda st: len(st) > 0, map(lambda name: name.strip().lower(), producer.split(";"))))
         print(producer)
-        auth_resp = self.cur_session.post(auth_url, json={"query": "mutation login($login:String!$password:String!)"
+        auth_resp = self.cur_session.post(self.auth_url, json={"query": "mutation login($login:String!$password:String!)"
                                                           "{login(loginForm:{login:$login password:$password})}",
                                           "variables": self._authorization_dict},
                                           headers={"User-Agent": user_agent})
@@ -459,7 +503,9 @@ if __name__ == "__main__":
     parser1 = ParserKomTrans()
     parser2 = ParserTrackMotors()
     parser3 = ParserAutoPiter()
+
+    print(parser3.parsing_article("30219", "BRINGER LIGHT"))
     # print(parser1.parsing_article("'30219", "BRINGER LIGHT"))
     # print(parser1.parsing_article("'30219"))
     # print(parser3.parsing_article("W363589026300", "DAIMLER AG,MB,MERCEDES,MERCEDES BENZ,MERCEDES BENZ REMAN,MERCEDESBENZ,MERSEDES BENZ,OE MERCEDES,OE MERCEDES BENZ"))  # 003310, 85696, 00-00000114, 40119
-    print(parser1.parsing_article("AZ9925520250", "HOWO"))
+    # print(parser1.parsing_article("AZ9925520250", "HOWO"))

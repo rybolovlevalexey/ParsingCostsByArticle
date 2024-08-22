@@ -19,6 +19,14 @@ app = FastAPI(title="Parsing product costs by its article",
 
 @app.get("/costs_by_article/{article}")
 def get_costs_by_article(article: str):
+    """
+    Парсинг информации всеми возможными парсерами по одному переданному артикулу.
+    На данный момент работают KomTrans, TrackMotors и AutoPiter
+    :param article: артикул, информацию по которому необходимо получить
+    :return json в формате {"article": article,
+                            "costs": список словарей, в которых ключ - название парсера и
+                                                    значение - список с минимальной и максимальной ценой}
+    """
     with ThreadPoolExecutor(max_workers=3) as executor:
         parser1, parser2, parser3 = ParserKomTrans(), ParserTrackMotors(), ParserAutoPiter()
         futures = [
@@ -32,19 +40,25 @@ def get_costs_by_article(article: str):
 
 @app.post("/costs_by_file")
 def post_costs_by_file(file: UploadFile = File(...)):
+    """
+    Парсинг по переданному файлу всеми возможными парсерами
+    :param file: excel файл с артикулами, которые надо обработать
+    :return: отчёт о выполнении/невыполнении обработки файла в формате json
+    """
     content_file = file.file.read()
     data_frame = pd.read_excel(BytesIO(content_file))
     rows, cols = data_frame.shape
 
     for index, row in data_frame.iterrows():
         row_article = row.iloc[0]
+        row_prod = row.iloc[2]
         try:
             with ThreadPoolExecutor(max_workers=3) as executor:
                 parser1, parser2, parser3 = ParserKomTrans(), ParserTrackMotors(), ParserAutoPiter()
                 futures = [
-                    executor.submit(parser1.parsing_article, row_article),
-                    executor.submit(parser2.parsing_article, row_article),
-                    executor.submit(parser3.parsing_article, row_article)
+                    executor.submit(parser1.parsing_article, row_article, row_prod),
+                    executor.submit(parser2.parsing_article, row_article, row_prod, True),
+                    executor.submit(parser3.parsing_article, row_article, row_prod)
                 ]
                 results = [future.result() for future in futures]
         except Exception:
@@ -65,14 +79,14 @@ def post_costs_by_file(file: UploadFile = File(...)):
 
 @app.post("/costs_by_file_threading")
 def post_costs_by_file_threading(file: UploadFile = File(...)):
-    def parsing_func(row_art, ind):
+    def parsing_func(row_art, row_prod, ind):
         try:
             with ThreadPoolExecutor(max_workers=3) as executor:
                 parser1, parser2, parser3 = ParserKomTrans(), ParserTrackMotors(), ParserAutoPiter()
                 futures = [
-                    executor.submit(parser1.parsing_article, row_art),
-                    executor.submit(parser2.parsing_article, row_art),
-                    executor.submit(parser3.parsing_article, row_art)
+                    executor.submit(parser1.parsing_article, row_art, row_prod),
+                    executor.submit(parser2.parsing_article, row_art, row_prod, True),
+                    executor.submit(parser3.parsing_article, row_art, row_prod)
                 ]
                 results = [future.result() for future in futures]
         except Exception:
@@ -95,7 +109,8 @@ def post_costs_by_file_threading(file: UploadFile = File(...)):
 
     for index, row in data_frame.iterrows():
         row_article = row.iloc[0]
-        thread = threading.Thread(target=parsing_func, args=(row_article, index))
+        row_producer = row.iloc[2]
+        thread = threading.Thread(target=parsing_func, args=(row_article, row_producer, index))
         threads.append(thread)
         thread.start()
 
@@ -108,14 +123,20 @@ def post_costs_by_file_threading(file: UploadFile = File(...)):
 
 @app.post("/costs_by_file_fastest")
 def post_costs_by_file_fastest(file: UploadFile = File(...)):
-    def parsing_func(row_art, ind):
+    """
+    Самый быстрый вариант по обработке excel файла за счёт многопроцессорности
+    (могут быть проблемы из-за частых запросов к сайтам)
+    :param file: excel файл с артикулами
+    :return: отчёт о результате, файл с добавленной информацией сохраняется на диск
+    """
+    def parsing_func(row_art, row_prod, ind):
         try:
             with ThreadPoolExecutor(max_workers=3) as executor:
                 parser1, parser2, parser3 = ParserKomTrans(), ParserTrackMotors(), ParserAutoPiter()
                 futures = [
-                    executor.submit(parser1.parsing_article, row_art),
-                    executor.submit(parser2.parsing_article, row_art),
-                    executor.submit(parser3.parsing_article, row_art)
+                    executor.submit(parser1.parsing_article, row_art, row_prod),
+                    executor.submit(parser2.parsing_article, row_art, row_prod, True),
+                    executor.submit(parser3.parsing_article, row_art, row_prod)
                 ]
                 results = [future.result() for future in futures]
         except Exception:
@@ -135,7 +156,7 @@ def post_costs_by_file_fastest(file: UploadFile = File(...)):
     rows, cols = data_frame.shape
 
     def wrapper(args):
-        return parsing_func(args[1].iloc[0], args[0])
+        return parsing_func(args[1].iloc[0], args[1].iloc[2], args[0])
 
     with ThreadPoolExecutor() as pool_executor:
         results = list(pool_executor.map(wrapper, data_frame.iterrows()))
@@ -146,6 +167,11 @@ def post_costs_by_file_fastest(file: UploadFile = File(...)):
 
 @app.post("/costs_by_massive_articles/")
 def post_costs_by_massive_articles(items: list[str]):
+    """
+    Парсинг массива артикулов со всевозможных сайтов
+    :param items: json список с артикулами, информация по которым необходима
+    :return: json с результатами по каждому артикулу
+    """
     def parsing_func(article):
         try:
             with ThreadPoolExecutor(max_workers=3) as executor:
@@ -169,6 +195,12 @@ def post_costs_by_massive_articles(items: list[str]):
 
 @app.post("/costs_by_file_selectively/")
 def post_costs_by_file_selectively(info: str = Form(...), file: UploadFile = File(...)):
+    """
+    Парсинг файла только по выбранным парсерам
+    :param info: json в котором передаётся информация о выбранных парсерах
+    :param file: excel с артикулами, по которым нужно собрать данные
+    :return: отчёт о выполнении/невыполнении обработки файла в формате json
+    """
     content_file = file.file.read()
     file_name_output = "".join(file.filename.split(".")[0:-1]).strip() + " updated." + file.filename.split(".")[-1]
     if file_name_output.endswith("xls"):
