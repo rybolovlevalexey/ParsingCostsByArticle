@@ -182,6 +182,8 @@ def post_costs_by_file_selectively(info: str = Form(...), file: UploadFile = Fil
             not additional_info["parsers_on"]["kom_trans"] and
             not additional_info["parsers_on"]["track_motors"]):
         for index, row in data_frame.iterrows():
+            if index <= 300:
+                continue
             time.sleep(5)
             if int(index) % 10 == 0 and int(index) != 0:
                 print(f"ПРОГРЕСС ПАРСИНГА {index} из {rows}. Отчёт об ошибках - {dict_codes_result}")

@@ -416,6 +416,13 @@ class ParserAutoPiter(BaseParser):  # https://autopiter.ru/
         search_url = f"https://autopiter.ru/api/api/searchdetails?detailNumber={article}&isFullQuery=true"
         costs_url = "https://autopiter.ru/api/api/appraise/getcosts?"
 
+        if producer is not None:
+            if ";" not in producer and "," not in producer:
+                producer += ";"
+            elif "," in producer:
+                producer = producer.replace(",", ";")
+            producer = list(filter(lambda st: len(st) > 0, map(lambda name: name.strip().lower(), producer.split(";"))))
+        print(producer)
         auth_resp = self.cur_session.post(auth_url, json={"query": "mutation login($login:String!$password:String!)"
                                                           "{login(loginForm:{login:$login password:$password})}",
                                           "variables": self._authorization_dict},
@@ -424,7 +431,7 @@ class ParserAutoPiter(BaseParser):  # https://autopiter.ru/
         search_data = json.loads(resp_search.content.decode("utf-8"))
         # pprint(search_data)
         for elem in search_data["data"]["catalogs"]:
-            if (producer is not None and "catalogName" in elem and producer.lower() == elem["catalogName"].lower()
+            if (producer is not None and "catalogName" in elem and elem["catalogName"].lower() in producer
                     or producer is None):
                 costs_url += "idArticles=" + str(elem["id"]) + "&"
         costs_url = costs_url[:-1]
@@ -454,5 +461,5 @@ if __name__ == "__main__":
     parser3 = ParserAutoPiter()
     # print(parser1.parsing_article("'30219", "BRINGER LIGHT"))
     # print(parser1.parsing_article("'30219"))
-    print(parser3.parsing_article("30110", "BRINGER LIGHT"))  # 003310, 85696, 00-00000114, 40119
-    # parser1.parsing_article_faster("003310")
+    # print(parser3.parsing_article("W363589026300", "DAIMLER AG,MB,MERCEDES,MERCEDES BENZ,MERCEDES BENZ REMAN,MERCEDESBENZ,MERSEDES BENZ,OE MERCEDES,OE MERCEDES BENZ"))  # 003310, 85696, 00-00000114, 40119
+    print(parser1.parsing_article("AZ9925520250", "HOWO"))
