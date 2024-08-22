@@ -86,7 +86,7 @@ class ParserKomTrans(BaseParser):  # https://www.comtt.ru/
         self.waiting_time = 15
 
     @func_timer
-    def parsing_article(self, article: str) -> dict[str: None | list[int]]:
+    def parsing_article(self, article: str, producer: str | None = None) -> dict[str: None | list[int]]:
         chrome_options = Options()
         chrome_options.add_argument(
             "--headless")  # Запуск браузера в фоновом режиме (без графического интерфейса)
@@ -99,6 +99,7 @@ class ParserKomTrans(BaseParser):  # https://www.comtt.ru/
         driver.get(self.auth_url)
         print("страница авторизации открыта успешно")
 
+        """
         if os.path.exists(os.path.join(BaseParser.session_dir, self.parser_name + ".pkl")):
             driver = self.load_selenium(driver, self.parser_name)
             print("В драйвер подгружена информация об актуальной сессии")
@@ -107,14 +108,20 @@ class ParserKomTrans(BaseParser):  # https://www.comtt.ru/
             self.save_selenium(driver, self.parser_name)
             print("Информация о сессии сохранена в файл")
 
-        # Переход к защищенной странице
+        """
+
+        # регистрация без попытки сохранения информации о сессии
+        driver = self.auth_selenium(driver, self._authorization_dict)
         driver.get(self.search_url + f"?fnd={article}")
+        # Переход к защищенной странице
+        # driver.get(self.search_url + f"?fnd={article}")
         print("выполнение поиска по артикулу")
         # wait = WebDriverWait(driver, 10)  # ожидание до 10 секунд
         # wait.until_not(EC.visibility_of_element_located((
         #     By.XPATH, "//h3[text()='Выполняется расширенный поиск, результаты будут отображены.']")))
         time.sleep(self.waiting_time)
 
+        """
         if (driver.find_element(By.XPATH, "//font[@color='red']") and
                 "Внимание! Вы не авторизованы!" in
                 driver.find_element(By.XPATH, "//font[@color='red']").text.strip()):
@@ -128,13 +135,21 @@ class ParserKomTrans(BaseParser):  # https://www.comtt.ru/
             #     By.XPATH, "//h3[text()='Выполняется расширенный поиск, результаты будут отображены.']")))
             self.save_selenium(driver, self.parser_name)
             print("обновление информации о сессии")
+        """
 
         # Парсинг содержимого защищенной страницы
         print("начат парсинг")
         # сохранение в html файл ответа для дальнейших проверок
         html_source = driver.page_source
-        # with open('page.html', 'w', encoding='utf-8') as file:
-        #     file.write(html_source)
+        with open('page.html', 'w', encoding='utf-8') as file:
+            file.write(html_source)
+
+        driver.save_screenshot("screen.png")
+
+        if len(driver.find_elements(By.CLASS_NAME, "orangebtn")) > 0:
+            driver.find_element(By.CLASS_NAME, "orangebtn").click()
+            print("Нажата кнопка попробовать снова")
+            time.sleep(5)
 
         content = driver.find_element(By.TAG_NAME, 'body')
         tag_name = "tbody"
@@ -143,13 +158,20 @@ class ParserKomTrans(BaseParser):  # https://www.comtt.ru/
         for line in content.find_element(By.CSS_SELECTOR,
                                          f"{tag_name}.{class_name}").find_elements(
                 By.TAG_NAME, "tr"):
-            info_by_article.append([line.find_elements(By.TAG_NAME, "td")[1].text.strip(),
-                                    line.find_elements(By.TAG_NAME, "td")[2].text.strip(),
-                                    line.find_elements(By.TAG_NAME, "td")[6].text.strip()])
+            info_by_article.append([line.find_elements(By.TAG_NAME, "td")[1].text.strip(),  # артикул
+                                    line.find_elements(By.TAG_NAME, "td")[2].text.strip(),  # производитель
+                                    line.find_elements(By.TAG_NAME, "td")[6].text.strip()])  # цена
         print(f"Кол-во товаров найденных по артикулу {len(info_by_article)}")
-        info_by_article = list(map(lambda info_elem: [info_elem[0], info_elem[1], float(info_elem[2].split()[0])],
-                                   filter(lambda info_part: info_part[0] == article, info_by_article)))
-        print(f"Кол-во товаров с точным соответствием артикула {len(info_by_article)}")
+        if producer is None:
+            info_by_article = list(map(lambda info_elem: [info_elem[0], info_elem[1], float(info_elem[2].split()[0])],
+                                       filter(lambda info_part: info_part[0] == article, info_by_article)))
+            print(f"Кол-во товаров с точным соответствием артикула {len(info_by_article)}")
+        else:
+            info_by_article = list(map(lambda info_elem: [info_elem[0], info_elem[1], float(info_elem[2].split()[0])],
+                                       filter(lambda info_part:
+                                              info_part[0] == article and info_part[1].lower() == producer.lower(),
+                                              info_by_article)))
+            print(f"Кол-во товаров с точным соответствием артикула и производителя {len(info_by_article)}")
         info_by_article = sorted(info_by_article, key=lambda info_part: info_part[2])
         pprint(info_by_article)
         if len(info_by_article) > 0:
@@ -430,5 +452,7 @@ if __name__ == "__main__":
     parser1 = ParserKomTrans()
     parser2 = ParserTrackMotors()
     parser3 = ParserAutoPiter()
-    print(parser3.parsing_article("30219", "BRINGER LIGHT"))  # 003310, 85696, 00-00000114, 40119
+    # print(parser1.parsing_article("'30219", "BRINGER LIGHT"))
+    # print(parser1.parsing_article("'30219"))
+    print(parser3.parsing_article("30110", "BRINGER LIGHT"))  # 003310, 85696, 00-00000114, 40119
     # parser1.parsing_article_faster("003310")

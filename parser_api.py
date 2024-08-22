@@ -171,6 +171,8 @@ def post_costs_by_massive_articles(items: list[str]):
 def post_costs_by_file_selectively(info: str = Form(...), file: UploadFile = File(...)):
     content_file = file.file.read()
     file_name_output = "".join(file.filename.split(".")[0:-1]).strip() + " updated." + file.filename.split(".")[-1]
+    if file_name_output.endswith("xls"):
+        file_name_output += "x"
     data_frame = pd.read_excel(BytesIO(content_file))
     additional_info = json.loads(info)
     rows, cols = data_frame.shape
@@ -185,11 +187,57 @@ def post_costs_by_file_selectively(info: str = Form(...), file: UploadFile = Fil
                 print(f"ПРОГРЕСС ПАРСИНГА {index} из {rows}. Отчёт об ошибках - {dict_codes_result}")
             if int(index) % 100 == 0 and int(index) != 0:
                 print("Сохранён новый промежуточный файл")
-                data_frame.to_excel(str(int(index) // 100) + file_name_output + "x", index=False)
+                data_frame.to_excel(str(int(index) // 100) + "auto_piter" + file_name_output, index=False)
             row_article = row.iloc[0]
             row_prod = row.iloc[2]
             parser = ParserAutoPiter()
-            elem = parser.parsing_article(row_article, row_prod)
+            try:
+                elem = parser.parsing_article(row_article, row_prod)
+            except Exception:
+                print(f"Произошла ошибка при парсиннге артикул - {row_article}")
+                continue
+            print(elem)
+
+            if "no_data" in elem and elem["no_data"]:
+                dict_codes_result["409"] = dict_codes_result.get("409", 0) + 1
+                continue
+            if "stop_flag" in elem and elem["stop_flag"]:
+                dict_codes_result["429"] = dict_codes_result.get("429", 0) + 1
+                print("Web Api url blocked, ЖДЁМ 5 МИНУТ")
+                time.sleep(300)
+                continue
+
+            dict_codes_result["200"] = dict_codes_result.get("200", 0) + 1
+            if list(elem.values())[0] is None:
+                data_frame.at[index, list(elem.keys())[0]] = list(elem.values())[0]
+            elif len(list(elem.values())[0]) == 1:
+                data_frame.at[index, list(elem.keys())[0]] = list(elem.values())[0][0]
+            else:
+                data_frame.at[index, list(elem.keys())[0]] = "-".join(list(map(str, list(elem.values())[0])))
+
+        data_frame.to_excel(file_name_output, index=False)
+        return {"done": True, "codes_counter": dict_codes_result}
+
+    elif (additional_info["parsers_on"]["kom_trans"]
+          and not additional_info["parsers_on"]["track_motors"]
+          and not additional_info["parsers_on"]["auto_piter"]):
+        print("Начат парсинг только с использованием kom_trans")
+        for index, row in data_frame.iterrows():
+            time.sleep(3)
+            if int(index) == 5:
+                data_frame.to_excel("!" + file_name_output, index=False)
+            if int(index) % 10 == 0 and int(index) != 0:
+                print(f"ПРОГРЕСС ПАРСИНГА {index} из {rows}. Отчёт об ошибках - {dict_codes_result}")
+            if int(index) % 100 == 0 and int(index) != 0:
+                print("Сохранён новый промежуточный файл")
+                data_frame.to_excel(str(int(index) // 100) + file_name_output, index=False)
+            row_article = row.iloc[0]
+            row_prod = row.iloc[2]
+            parser = ParserKomTrans()
+            try:
+                elem = parser.parsing_article(row_article, row_prod)
+            except Exception:
+                continue
             print(elem)
 
             if "no_data" in elem and elem["no_data"]:
@@ -200,6 +248,8 @@ def post_costs_by_file_selectively(info: str = Form(...), file: UploadFile = Fil
                 print("Web Api url blocked, ЖДЁМ МИНУТУ")
                 time.sleep(60)
                 continue
+            if parser.parser_name in elem and elem[parser.parser_name] is None:
+                dict_codes_result["no_info_art"] = dict_codes_result.get("no_info_art", 0) + 1
 
             dict_codes_result["200"] = dict_codes_result.get("200", 0) + 1
             if list(elem.values())[0] is None:

@@ -49,7 +49,7 @@ def test_online_one_art():
     pprint(resp.content)
 
 
-def test_selectively():
+def test_selectively_auto_piter():
     url = "http://127.0.0.1:8000/costs_by_file_selectively"
     file_path = "Ост 20240820.xls"
 
@@ -65,4 +65,20 @@ def test_selectively():
     print(response.content)
 
 
-test_selectively()
+def test_selectively_kom_trans():
+    url = "http://127.0.0.1:8000/costs_by_file_selectively"
+    file_path = "Ост 20240820.xls"
+
+    data = {
+        "parsers_on": {
+            "kom_trans": True,
+            "track_motors": False,
+            "auto_piter": False
+        }
+    }
+    response = requests.post(url, data={"info": json.dumps(data)},
+                             files={"file": open(file_path, "rb")})
+    print(response.content)
+
+
+test_selectively_auto_piter()
