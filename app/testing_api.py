@@ -14,7 +14,7 @@ def test_files():
     url = "http://127.0.0.1:8000/costs_by_file"
     url_faster = "http://127.0.0.1:8000/costs_by_file_costs_by_file_fastest"
 
-    file_path = "укороченный новый файл.xlsx"
+    file_path = "../укороченный новый файл.xlsx"
 
     with open(file_path, "rb") as file:
         files = {"file": file}
@@ -51,7 +51,7 @@ def test_online_one_art():
 
 def test_selectively_auto_piter():
     url = "http://127.0.0.1:8000/costs_by_file_selectively"
-    file_path = "Ост 20240820 мерс_норм.xlsx"
+    file_path = "../Ост 20240820 мерс_норм.xlsx"
 
     data = {
         "parsers_on": {
@@ -67,7 +67,7 @@ def test_selectively_auto_piter():
 
 def test_selectively_kom_trans():
     url = "http://127.0.0.1:8000/costs_by_file_selectively"
-    file_path = "Ост 20240820 мерс_норм.xlsx"
+    file_path = "../Ост 20240820 мерс_норм.xlsx"
 
     data = {
         "parsers_on": {

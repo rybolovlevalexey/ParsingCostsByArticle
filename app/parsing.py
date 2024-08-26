@@ -29,7 +29,7 @@ def func_timer(func):
 
 
 class BaseParser:
-    session_dir = "all_sessions"
+    session_dir = "../all_sessions"
 
     @staticmethod
     def auth_selenium(driver, authorization_dict: dict[str, str], flag_sleep=False):
@@ -141,10 +141,11 @@ class ParserKomTrans(BaseParser):  # https://www.comtt.ru/
         print("начат парсинг")
         # сохранение в html файл ответа для дальнейших проверок
         html_source = driver.page_source
-        with open('page.html', 'w', encoding='utf-8') as file:
-            file.write(html_source)
 
-        driver.save_screenshot("screen.png")
+        # with open('page.html', 'w', encoding='utf-8') as file:
+        #     file.write(html_source)
+
+        # driver.save_screenshot("")
 
         if len(driver.find_elements(By.CLASS_NAME, "orangebtn")) > 0:
             driver.find_element(By.CLASS_NAME, "orangebtn").click()
@@ -504,6 +505,8 @@ if __name__ == "__main__":
     parser2 = ParserTrackMotors()
     parser3 = ParserAutoPiter()
 
+    print(parser1.parsing_article("30219", "BRINGER LIGHT"))
+    print(parser2.parsing_article("30219", "BRINGER LIGHT"))
     print(parser3.parsing_article("30219", "BRINGER LIGHT"))
     # print(parser1.parsing_article("'30219", "BRINGER LIGHT"))
     # print(parser1.parsing_article("'30219"))

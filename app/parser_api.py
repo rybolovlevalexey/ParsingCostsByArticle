@@ -297,6 +297,11 @@ def post_costs_by_file_selectively(info: str = Form(...), file: UploadFile = Fil
         return {"done": True, "codes_counter": dict_codes_result}
 
 
+@app.post("/create_user")
+def post_create_user():
+    pass
+
+
 @app.get("/")
 def get_index():
     return {"index": "done"}
