@@ -313,9 +313,19 @@ class ParserTrackMotors(BaseParser):  # https://market.tmtr.ru
             else:
                 resp_content = resp.text
             json_data = json.loads(resp_content)
-            all_costs = list(float(elem["Price"]) for elem in json_data)
-            print(f"Цены в парсере {self.parser_name} обработаны успешно: "
-                  f"минимум - {min(all_costs)}, максимум - {max(all_costs)}")
+            print("json_data", json_data)
+            all_costs = list()
+            for elem in json_data:
+                try:
+                    all_costs.append(float(elem["Price"]))
+                except Exception:
+                    break
+            if len(all_costs) > 0:
+                print(f"Цены в парсере {self.parser_name} обработаны успешно: "
+                      f"минимум - {min(all_costs)}, максимум - {max(all_costs)}")
+            else:
+                print(f"По артикулу {article} и производителю {producer} "
+                      f"в парсере {self.parser_name} ничего не найдено")
             if len(all_costs) == 0:
                 return {self.parser_name: None}
             if len(all_costs) == 1:

@@ -10,6 +10,12 @@ def test_articles():
     pprint(resp.content)
 
 
+def test_articles_with_producer():
+    resp = requests.get("http://127.0.0.1:8000/costs_by_article/003310/BRINGER LIGHT")
+    print(resp)
+    pprint(resp.content)
+
+
 def test_files():
     url = "http://127.0.0.1:8000/costs_by_file"
     url_faster = "http://127.0.0.1:8000/costs_by_file_costs_by_file_fastest"
@@ -82,4 +88,5 @@ def test_selectively_kom_trans():
 
 
 # test_selectively_auto_piter()
-test_articles()
+# test_articles()
+test_articles_with_producer()

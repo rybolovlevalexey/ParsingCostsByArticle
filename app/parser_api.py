@@ -38,6 +38,28 @@ def get_costs_by_article(article: str):
     return {"article": article, "costs": results}
 
 
+@app.get("/costs_by_article/{article}/{producer}")
+def get_costs_by_article(article: str, producer: str):
+    """
+    Парсинг информации всеми возможными парсерами по одному переданному артикулу.
+    На данный момент работают KomTrans, TrackMotors и AutoPiter
+    :param article: артикул, информацию по которому необходимо получить
+    :param producer: название производителя, у которого необходимо искать переданный артикул
+    :return json в формате {"article": article,
+                            "costs": список словарей, в которых ключ - название парсера и
+                                                    значение - список с минимальной и максимальной ценой}
+    """
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        parser1, parser2, parser3 = ParserKomTrans(), ParserTrackMotors(), ParserAutoPiter()
+        futures = [
+            executor.submit(parser1.parsing_article, article, producer),
+            executor.submit(parser2.parsing_article, article, producer, True),
+            executor.submit(parser3.parsing_article, article, producer)
+        ]
+        results = [future.result() for future in futures]
+    return {"article": article, "costs": results}
+
+
 @app.post("/costs_by_file")
 def post_costs_by_file(file: UploadFile = File(...)):
     """
