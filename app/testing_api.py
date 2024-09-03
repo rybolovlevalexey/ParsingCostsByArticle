@@ -87,6 +87,12 @@ def test_selectively_kom_trans():
     print(response.content)
 
 
+def test_post_new_user():
+    url = "http://127.0.0.1:8000/create_user"
+    data = {"login": "admin", "password": "admin_password"}
+    resp = requests.post(url, data=json.dumps(data))
+
+
 # test_selectively_auto_piter()
-# test_articles()
-test_articles_with_producer()
+# test_articles_with_producer()
+test_post_new_user()

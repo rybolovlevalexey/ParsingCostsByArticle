@@ -1,8 +1,7 @@
 import time
-
-from fastapi import FastAPI, HTTPException, File, UploadFile, Form
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException, File, UploadFile, Form, Request
+from fastapi.responses import JSONResponse
 from parsing import ParserKomTrans, ParserTrackMotors, ParserAutoPiter
 from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
@@ -11,6 +10,12 @@ import threading
 import multiprocessing
 import uvicorn
 import json
+from databases import DatabaseActions
+
+
+class NewUser(BaseModel):
+    login: str
+    password: str
 
 
 app = FastAPI(title="Parsing product costs by its article",
@@ -320,8 +325,16 @@ def post_costs_by_file_selectively(info: str = Form(...), file: UploadFile = Fil
 
 
 @app.post("/create_user")
-def post_create_user():
-    pass
+def post_create_user(info: NewUser):
+    result = DatabaseActions().create_new_user(info.login, info.password)
+    if result:
+        return "Новый пользователь успешно добавлен"
+    return "Новый пользователь не добавлен, попробуйте что-то другое"
+
+
+@app.post("/create_template")
+def post_create_template(requests: Request, ):
+    login, password = requests.headers.get("login"), requests.headers.get("password")
 
 
 @app.get("/")

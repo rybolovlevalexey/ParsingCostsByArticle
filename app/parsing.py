@@ -182,15 +182,15 @@ class ParserKomTrans(BaseParser):  # https://www.comtt.ru/
             print("Информации по данному артикулу не найдено")
 
         if len(info_by_article) == 0:
-            return {self.parser_name: None}
+            return {"parser_name": self.parser_name, "costs": None}
         if len(info_by_article) == 1:
-            return {self.parser_name: [info_by_article[0][2]]}
-        return {self.parser_name: [info_by_article[0][2], info_by_article[-1][2]]}
+            return {"parser_name": self.parser_name, "costs": [info_by_article[0][2]]}
+        return {"parser_name": self.parser_name, "costs": [info_by_article[0][2], info_by_article[-1][2]]}
 
     @func_timer
     def parsing_list_articles(self, articles: list[str]):
         if len(articles) == 0:
-            return False
+            return {"parser_name": self.parser_name, "error": "articles list is empty"}
         result_answer: dict[str: list[str]] = dict()
 
         chrome_options = Options()
@@ -258,7 +258,7 @@ class ParserKomTrans(BaseParser):  # https://www.comtt.ru/
                 result_answer[articles[i]] = list(info_by_article[0][2])
             else:
                 result_answer[articles[i]] = [info_by_article[0][2], info_by_article[-1][2]]
-        return result_answer
+        return {"parser_name": self.parser_name, "costs": result_answer}
 
     @func_timer
     def parsing_article_faster(self, article: str):
@@ -300,7 +300,7 @@ class ParserTrackMotors(BaseParser):  # https://market.tmtr.ru
             # надо учесть, что бренд может быть None
             if producer is None:
                 print("Без информации о необходимом производителе невозможно получить однозначную информацию")
-                return {self.parser_name: None}
+                return {"parser_name": self.parser_name, "error": "no info about producer or brand"}
             resp = requests.post(self.search_url, headers=self._authorization_dict,
                                  json={"article": article, "brand": producer})
             if resp.status_code == 200:
@@ -327,10 +327,10 @@ class ParserTrackMotors(BaseParser):  # https://market.tmtr.ru
                 print(f"По артикулу {article} и производителю {producer} "
                       f"в парсере {self.parser_name} ничего не найдено")
             if len(all_costs) == 0:
-                return {self.parser_name: None}
+                return {"parser_name": self.parser_name, "costs": None}
             if len(all_costs) == 1:
-                return {self.parser_name: all_costs}
-            return {self.parser_name: [min(all_costs), max(all_costs)]}
+                return {"parser_name": self.parser_name, "costs": all_costs}
+            return {"parser_name": self.parser_name, "costs": [min(all_costs), max(all_costs)]}
 
         else:
             chrome_options = Options()
@@ -361,7 +361,7 @@ class ParserTrackMotors(BaseParser):  # https://market.tmtr.ru
                 pages_count = int(driver.find_element(By.CLASS_NAME,
                                                       "mat-mdc-paginator-range-label").text.strip().split()[-1])
             except Exception:  # не нашёл информации о количестве страниц, следовательно ответ пустой
-                return {self.parser_name: None}
+                return {"parser_name": self.parser_name, "costs": None}
             if pages_count == 1:
                 for line in driver.find_element(
                         By.XPATH, "//tbody[@role='rowgroup']").find_elements(By.TAG_NAME, "tr"):
@@ -413,7 +413,7 @@ class ParserTrackMotors(BaseParser):  # https://market.tmtr.ru
                         continue
             else:
                 print("Информации по данному артикулу не найдено")
-                return {self.parser_name: None}
+                return {"parser_name": self.parser_name, "costs": None}
 
             pprint(info_by_article)
             print(f"Кол-во найденных товаров по введённому артикулу {len(info_by_article)}")
@@ -430,10 +430,10 @@ class ParserTrackMotors(BaseParser):  # https://market.tmtr.ru
                 print("Информации по данному артикулу после фильтрации не найдено")
 
             if len(info_by_article) == 0:
-                return {self.parser_name: None}
+                return {"parser_name": self.parser_name, "costs": None}
             if len(info_by_article) == 1:
-                return {self.parser_name: [info_by_article[0][2]]}
-            return {self.parser_name: [info_by_article[0][2], info_by_article[-1][2]]}
+                return {"parser_name": self.parser_name, "costs": [info_by_article[0][2]]}
+            return {"parser_name": self.parser_name, "costs": [info_by_article[0][2], info_by_article[-1][2]]}
 
     @func_timer
     def parsing_article_api(self, article: str, producer: str) -> dict[str: None | list[int]]:
@@ -447,10 +447,10 @@ class ParserTrackMotors(BaseParser):  # https://market.tmtr.ru
         json_data = json.loads(resp_content)
         all_costs = list(float(elem["Price"]) for elem in json_data)
         if len(all_costs) == 0:
-            return {self.parser_name: None}
+            return {"parser_name": self.parser_name, "costs": None}
         if len(all_costs) == 1:
-            return {self.parser_name: all_costs}
-        return {self.parser_name: [min(all_costs), max(all_costs)]}
+            return {"parser_name": self.parser_name, "costs": all_costs}
+        return {"parser_name": self.parser_name, "costs": [min(all_costs), max(all_costs)]}
 
 
 class ParserAutoPiter(BaseParser):  # https://autopiter.ru/
@@ -497,17 +497,17 @@ class ParserAutoPiter(BaseParser):  # https://autopiter.ru/
         print(search_url, costs_url)
         print("------------")
         if "code" in json_content and json_content["code"] == "429":
-            return {"stop_flag": True}
+            return {"parser_name": self.parser_name, "stop_flag": True}
         if "data" not in json_content:
-            return {"no_data": True}
+            return {"parser_name": self.parser_name, "no_data": True}
         for elem in json.loads(resp_costs.content)["data"]:
             if elem["originalPrice"] > 0:
                 all_costs.append(elem["originalPrice"])
         if len(all_costs) == 0:
-            return {self.parser_name: None}
+            return {"parser_name": self.parser_name, "costs": None}
         if len(all_costs) == 1:
-            return {self.parser_name: [all_costs[0]]}
-        return {self.parser_name: [min(all_costs), max(all_costs)]}
+            return {"parser_name": self.parser_name, "costs": all_costs}
+        return {"parser_name": self.parser_name, "costs": [min(all_costs), max(all_costs)]}
 
 
 if __name__ == "__main__":
