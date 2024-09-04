@@ -21,8 +21,9 @@ def test_files():
     url_faster = "http://127.0.0.1:8000/costs_by_file_costs_by_file_fastest"
 
     file_path = "../укороченный новый файл.xlsx"
+    new_file_path = "../Товары1.xlsx"
 
-    with open(file_path, "rb") as file:
+    with open(new_file_path, "rb") as file:
         files = {"file": file}
         response = requests.post(url, files=files)
 
@@ -93,6 +94,18 @@ def test_post_new_user():
     resp = requests.post(url, data=json.dumps(data))
 
 
+def test_json_info():
+    url = "http://127.0.0.1:8000/costs_by_json"
+
+    resp = requests.post(url, data={"info": json.dumps([
+        {"article": "A4722000154", "producer": "MERCEDES-BENZ"},
+        {"article": "WG9925955059", "producer": "HOWO"}
+    ])})
+    pprint(json.loads(resp.content))
+
+
 # test_selectively_auto_piter()
 # test_articles_with_producer()
-test_post_new_user()
+# test_post_new_user()
+# test_files()
+test_json_info()

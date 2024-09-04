@@ -324,6 +324,26 @@ def post_costs_by_file_selectively(info: str = Form(...), file: UploadFile = Fil
         return {"done": True, "codes_counter": dict_codes_result}
 
 
+@app.post("/costs_by_json")
+def post_costs_by_json(info: str = Form(...)):
+    info_json = json.loads(info)
+    output_info = list()
+
+    for elem in info_json:
+        row_article, row_prod = elem["article"], elem["producer"]
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            parser1, parser2, parser3 = ParserKomTrans(), ParserTrackMotors(), ParserAutoPiter()
+            futures = [
+                # executor.submit(parser1.parsing_article, row_article, row_prod),
+                executor.submit(parser2.parsing_article, row_article, row_prod, True),
+                executor.submit(parser3.parsing_article, row_article, row_prod)
+            ]
+            row_results = [future.result() for future in futures]
+        print(row_results)
+        output_info.append({"article": row_article, "results": row_results})
+    return json.dumps(output_info)
+
+
 @app.post("/create_user")
 def post_create_user(info: NewUser):
     result = DatabaseActions().create_new_user(info.login, info.password)
