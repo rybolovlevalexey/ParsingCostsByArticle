@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import requests
 from fake_useragent import UserAgent
 from bs4 import BeautifulSoup
@@ -79,113 +81,151 @@ class ParserKomTrans(BaseParser):  # https://www.comtt.ru/
     def __init__(self):
         self.cur_session = requests.Session()
         auth_data = json.load(open("authorization.json", "r"))
-        self._authorization_dict = {"login": auth_data["kom_trans"]["login"],
-                                    "pass": auth_data["kom_trans"]["password"]}
+        self._authorization_dict = {"login": auth_data[self.parser_name]["login"],
+                                    "pass": auth_data[self.parser_name]["password"]}
         self.auth_url = "https://www.comtt.ru/login.php"
         self.search_url = "https://www.comtt.ru/search.php"
+
+        self._authorization_api_dict = {"login": auth_data[self.parser_name]["login"],
+                                        "password": auth_data[self.parser_name]["password"]}
+        self.api_auth_url = "http://catalogs.comtt.ru/api/login.php"
+        self.api_search_url = "http://catalogs.comtt.ru/api/search.php"
         self.waiting_time = 15
 
     @func_timer
-    def parsing_article(self, article: str, producer: str | None = None) -> dict[str: None | list[int]]:
-        chrome_options = Options()
-        chrome_options.add_argument(
-            "--headless")  # Запуск браузера в фоновом режиме (без графического интерфейса)
-        service = Service(ChromeDriverManager().install())
-        driver = webdriver.Chrome(service=service, options=chrome_options)
-        # driver.implicitly_wait(10)
-        print("До блока try нет никаких ошибок")
+    def parsing_article(self, article: str, producer: str | None = None, api_version: bool = True) -> dict[str: None | list[int]]:
+        if api_version:
+            auth_data = json.load(open("authorization.json", "r"))
+            if "token" in auth_data[self.parser_name].keys():
+                auth_token = auth_data[self.parser_name]["token"]
+            else:
+                api_auth_resp = requests.post(self.api_auth_url, json=self._authorization_api_dict)
+                pprint(json.loads(api_auth_resp.content))
+                auth_token = json.loads(api_auth_resp.content)["token"]
+                auth_data[self.parser_name]["token"] = auth_token
+                open("authorization.json", "w").write(json.dumps(auth_data))
 
-        # Открытие страницы авторизации
-        driver.get(self.auth_url)
-        print("страница авторизации открыта успешно")
+            api_search_resp = requests.post(self.api_search_url, json={"search": article, "token": auth_token})
+            pprint(json.loads(api_search_resp.content))
 
-        """
-        if os.path.exists(os.path.join(BaseParser.session_dir, self.parser_name + ".pkl")):
-            driver = self.load_selenium(driver, self.parser_name)
-            print("В драйвер подгружена информация об актуальной сессии")
+            """result_output = {"parser_name": self.parser_name}
+            if len(all_costs) == 0:
+                result_output["costs"] = None
+            elif len(all_costs) == 1:
+                result_output["costs"] = all_costs
+            else:
+                result_output["costs"] = [min(all_costs), max(all_costs)]
+
+            if len(all_delivery_days) == 0:
+                result_output["delivery_days"] = None
+            elif len(all_delivery_days) == 1:
+                result_output["delivery_days"] = all_delivery_days
+            else:
+                result_output["delivery_days"] = [min(all_delivery_days), max(all_delivery_days)]
+
+            result_output["variants"] = variants
+
+            return result_output"""
         else:
-            driver = self.auth_selenium(driver, self._authorization_dict)
-            self.save_selenium(driver, self.parser_name)
-            print("Информация о сессии сохранена в файл")
+            chrome_options = Options()
+            chrome_options.add_argument(
+                "--headless")  # Запуск браузера в фоновом режиме (без графического интерфейса)
+            service = Service(ChromeDriverManager().install())
+            driver = webdriver.Chrome(service=service, options=chrome_options)
+            # driver.implicitly_wait(10)
+            print("До блока try нет никаких ошибок")
 
-        """
+            # Открытие страницы авторизации
+            driver.get(self.auth_url)
+            print("страница авторизации открыта успешно")
 
-        # регистрация без попытки сохранения информации о сессии
-        driver = self.auth_selenium(driver, self._authorization_dict)
-        driver.get(self.search_url + f"?fnd={article}")
-        # Переход к защищенной странице
-        # driver.get(self.search_url + f"?fnd={article}")
-        print("выполнение поиска по артикулу")
-        # wait = WebDriverWait(driver, 10)  # ожидание до 10 секунд
-        # wait.until_not(EC.visibility_of_element_located((
-        #     By.XPATH, "//h3[text()='Выполняется расширенный поиск, результаты будут отображены.']")))
-        time.sleep(self.waiting_time)
+            """
+            if os.path.exists(os.path.join(BaseParser.session_dir, self.parser_name + ".pkl")):
+                driver = self.load_selenium(driver, self.parser_name)
+                print("В драйвер подгружена информация об актуальной сессии")
+            else:
+                driver = self.auth_selenium(driver, self._authorization_dict)
+                self.save_selenium(driver, self.parser_name)
+                print("Информация о сессии сохранена в файл")
+    
+            """
 
-        """
-        if (driver.find_element(By.XPATH, "//font[@color='red']") and
-                "Внимание! Вы не авторизованы!" in
-                driver.find_element(By.XPATH, "//font[@color='red']").text.strip()):
-            print("Текущая сессия не зарегистрирована")
+            # регистрация без попытки сохранения информации о сессии
             driver = self.auth_selenium(driver, self._authorization_dict)
             driver.get(self.search_url + f"?fnd={article}")
-            print("выполнение поиска по артикулу после повторной регистрации")
-            time.sleep(self.waiting_time)
+            # Переход к защищенной странице
+            # driver.get(self.search_url + f"?fnd={article}")
+            print("выполнение поиска по артикулу")
             # wait = WebDriverWait(driver, 10)  # ожидание до 10 секунд
             # wait.until_not(EC.visibility_of_element_located((
             #     By.XPATH, "//h3[text()='Выполняется расширенный поиск, результаты будут отображены.']")))
-            self.save_selenium(driver, self.parser_name)
-            print("обновление информации о сессии")
-        """
+            time.sleep(self.waiting_time)
 
-        # Парсинг содержимого защищенной страницы
-        print("начат парсинг")
-        # сохранение в html файл ответа для дальнейших проверок
-        html_source = driver.page_source
+            """
+            if (driver.find_element(By.XPATH, "//font[@color='red']") and
+                    "Внимание! Вы не авторизованы!" in
+                    driver.find_element(By.XPATH, "//font[@color='red']").text.strip()):
+                print("Текущая сессия не зарегистрирована")
+                driver = self.auth_selenium(driver, self._authorization_dict)
+                driver.get(self.search_url + f"?fnd={article}")
+                print("выполнение поиска по артикулу после повторной регистрации")
+                time.sleep(self.waiting_time)
+                # wait = WebDriverWait(driver, 10)  # ожидание до 10 секунд
+                # wait.until_not(EC.visibility_of_element_located((
+                #     By.XPATH, "//h3[text()='Выполняется расширенный поиск, результаты будут отображены.']")))
+                self.save_selenium(driver, self.parser_name)
+                print("обновление информации о сессии")
+            """
 
-        # with open('page.html', 'w', encoding='utf-8') as file:
-        #     file.write(html_source)
+            # Парсинг содержимого защищенной страницы
+            print("начат парсинг")
+            # сохранение в html файл ответа для дальнейших проверок
+            html_source = driver.page_source
 
-        # driver.save_screenshot("")
+            # with open('page.html', 'w', encoding='utf-8') as file:
+            #     file.write(html_source)
 
-        if len(driver.find_elements(By.CLASS_NAME, "orangebtn")) > 0:
-            driver.find_element(By.CLASS_NAME, "orangebtn").click()
-            print("Нажата кнопка попробовать снова")
-            time.sleep(5)
+            # driver.save_screenshot("")
 
-        content = driver.find_element(By.TAG_NAME, 'body')
-        tag_name = "tbody"
-        class_name = "sort"
-        info_by_article = list()
-        for line in content.find_element(By.CSS_SELECTOR,
-                                         f"{tag_name}.{class_name}").find_elements(
-                By.TAG_NAME, "tr"):
-            info_by_article.append([line.find_elements(By.TAG_NAME, "td")[1].text.strip(),  # артикул
-                                    line.find_elements(By.TAG_NAME, "td")[2].text.strip(),  # производитель
-                                    line.find_elements(By.TAG_NAME, "td")[6].text.strip()])  # цена
-        print(f"Кол-во товаров найденных по артикулу {len(info_by_article)}")
-        if producer is None:
-            info_by_article = list(map(lambda info_elem: [info_elem[0], info_elem[1], float(info_elem[2].split()[0])],
-                                       filter(lambda info_part: info_part[0] == article, info_by_article)))
-            print(f"Кол-во товаров с точным соответствием артикула {len(info_by_article)}")
-        else:
-            info_by_article = list(map(lambda info_elem: [info_elem[0], info_elem[1], float(info_elem[2].split()[0])],
-                                       filter(lambda info_part:
-                                              info_part[0] == article and info_part[1].lower() == producer.lower(),
-                                              info_by_article)))
-            print(f"Кол-во товаров с точным соответствием артикула и производителя {len(info_by_article)}")
-        info_by_article = sorted(info_by_article, key=lambda info_part: info_part[2])
-        pprint(info_by_article)
-        if len(info_by_article) > 0:
-            print(f"Самая низкая цена - {info_by_article[0][2]} \n"
-                  f"самая высокая цена - {info_by_article[-1][2]}")
-        else:
-            print("Информации по данному артикулу не найдено")
+            if len(driver.find_elements(By.CLASS_NAME, "orangebtn")) > 0:
+                driver.find_element(By.CLASS_NAME, "orangebtn").click()
+                print("Нажата кнопка попробовать снова")
+                time.sleep(5)
 
-        if len(info_by_article) == 0:
-            return {"parser_name": self.parser_name, "costs": None}
-        if len(info_by_article) == 1:
-            return {"parser_name": self.parser_name, "costs": [info_by_article[0][2]]}
-        return {"parser_name": self.parser_name, "costs": [info_by_article[0][2], info_by_article[-1][2]]}
+            content = driver.find_element(By.TAG_NAME, 'body')
+            tag_name = "tbody"
+            class_name = "sort"
+            info_by_article = list()
+            for line in content.find_element(By.CSS_SELECTOR,
+                                             f"{tag_name}.{class_name}").find_elements(
+                    By.TAG_NAME, "tr"):
+                info_by_article.append([line.find_elements(By.TAG_NAME, "td")[1].text.strip(),  # артикул
+                                        line.find_elements(By.TAG_NAME, "td")[2].text.strip(),  # производитель
+                                        line.find_elements(By.TAG_NAME, "td")[6].text.strip()])  # цена
+            print(f"Кол-во товаров найденных по артикулу {len(info_by_article)}")
+            if producer is None:
+                info_by_article = list(map(lambda info_elem: [info_elem[0], info_elem[1], float(info_elem[2].split()[0])],
+                                           filter(lambda info_part: info_part[0] == article, info_by_article)))
+                print(f"Кол-во товаров с точным соответствием артикула {len(info_by_article)}")
+            else:
+                info_by_article = list(map(lambda info_elem: [info_elem[0], info_elem[1], float(info_elem[2].split()[0])],
+                                           filter(lambda info_part:
+                                                  info_part[0] == article and info_part[1].lower() == producer.lower(),
+                                                  info_by_article)))
+                print(f"Кол-во товаров с точным соответствием артикула и производителя {len(info_by_article)}")
+            info_by_article = sorted(info_by_article, key=lambda info_part: info_part[2])
+            pprint(info_by_article)
+            if len(info_by_article) > 0:
+                print(f"Самая низкая цена - {info_by_article[0][2]} \n"
+                      f"самая высокая цена - {info_by_article[-1][2]}")
+            else:
+                print("Информации по данному артикулу не найдено")
+
+            if len(info_by_article) == 0:
+                return {"parser_name": self.parser_name, "costs": None}
+            if len(info_by_article) == 1:
+                return {"parser_name": self.parser_name, "costs": [info_by_article[0][2]]}
+            return {"parser_name": self.parser_name, "costs": [info_by_article[0][2], info_by_article[-1][2]]}
 
     @func_timer
     def parsing_list_articles(self, articles: list[str]):
@@ -297,6 +337,7 @@ class ParserTrackMotors(BaseParser):  # https://market.tmtr.ru
     def parsing_article(self, article: str, producer: str | None = None,
                         api_version: bool = True) -> dict[str: None | list[float]]:
         if api_version:
+            result_output = {"parser_name": self.parser_name}
             # надо учесть, что бренд может быть None
             if producer is None:
                 print("Без информации о необходимом производителе невозможно получить однозначную информацию")
@@ -315,9 +356,23 @@ class ParserTrackMotors(BaseParser):  # https://market.tmtr.ru
             json_data = json.loads(resp_content)
             print("json_data", json_data)
             all_costs = list()
+            all_delivery_days = list()
+            all_variants = list()
+
             for elem in json_data:
                 try:
                     all_costs.append(float(elem["Price"]))
+                    if datetime.fromisoformat(elem["DeliveryDate"]) >= datetime.now():
+                        all_delivery_days.append((datetime.fromisoformat(elem["DeliveryDate"]) - datetime.now()).days +
+                                                 (1 if (datetime.fromisoformat(elem["DeliveryDate"]) -
+                                                        datetime.now()).seconds >= 12 else 0))
+                        all_variants.append({"cost": elem["Price"],
+                                             "delivery_days":
+                                                 (datetime.fromisoformat(elem["DeliveryDate"]) - datetime.now()).days +
+                                                 (1 if (datetime.fromisoformat(elem["DeliveryDate"]) -
+                                                        datetime.now()).seconds >= 12 else 0)})
+                    else:
+                        all_variants.append({"cost": elem["Price"], "delivery_days": None})
                 except Exception:
                     break
             if len(all_costs) > 0:
@@ -326,11 +381,24 @@ class ParserTrackMotors(BaseParser):  # https://market.tmtr.ru
             else:
                 print(f"По артикулу {article} и производителю {producer} "
                       f"в парсере {self.parser_name} ничего не найдено")
+
             if len(all_costs) == 0:
-                return {"parser_name": self.parser_name, "costs": None}
-            if len(all_costs) == 1:
-                return {"parser_name": self.parser_name, "costs": all_costs}
-            return {"parser_name": self.parser_name, "costs": [min(all_costs), max(all_costs)]}
+                result_output["costs"] = None
+            elif len(all_costs) == 1:
+                result_output["costs"] = all_costs
+            else:
+                result_output["costs"] = [min(all_costs), max(all_costs)]
+
+            if len(all_delivery_days) == 0:
+                result_output["delivery_days"] = None
+            elif len(all_delivery_days) == 1:
+                result_output["delivery_days"] = all_delivery_days
+            else:
+                result_output["delivery_days"] = [min(all_delivery_days), max(all_delivery_days)]
+
+            result_output["variants"] = all_variants
+
+            return result_output
 
         else:
             chrome_options = Options()
@@ -470,6 +538,7 @@ class ParserAutoPiter(BaseParser):  # https://autopiter.ru/
         user_agent = UserAgent().random
         search_url = f"https://autopiter.ru/api/api/searchdetails?detailNumber={article}&isFullQuery=true"
         costs_url = "https://autopiter.ru/api/api/appraise/getcosts?"
+        url_more_info = f"https://autopiter.ru/api/api/appraise?"
 
         if producer is not None:
             if ";" not in producer and "," not in producer:
@@ -485,29 +554,62 @@ class ParserAutoPiter(BaseParser):  # https://autopiter.ru/
         resp_search = self.cur_session.get(search_url, headers={"User-Agent": user_agent})
         search_data = json.loads(resp_search.content.decode("utf-8"))
         # pprint(search_data)
+
         for elem in search_data["data"]["catalogs"]:
             if (producer is not None and "catalogName" in elem and elem["catalogName"].lower() in producer
                     or producer is None):
                 costs_url += "idArticles=" + str(elem["id"]) + "&"
+                url_more_info += "id=" + str(elem["id"]) + "&"
+
         costs_url = costs_url[:-1]
+        url_more_info = url_more_info[:-1]
+
         resp_costs = self.cur_session.get(costs_url, headers={"User-Agent": user_agent})
         json_content = json.loads(resp_costs.content)
         pprint(json_content)
+
+        more_info_search = self.cur_session.get(url_more_info, headers={"User-Agent": user_agent})
+        more_info = json.loads(more_info_search.content)
+        pprint(more_info)
+
         all_costs = list()
+        all_delivery_days = list()
+        variants = list()
+
         print(search_url, costs_url)
         print("------------")
         if "code" in json_content and json_content["code"] == "429":
             return {"parser_name": self.parser_name, "stop_flag": True}
         if "data" not in json_content:
             return {"parser_name": self.parser_name, "no_data": True}
-        for elem in json.loads(resp_costs.content)["data"]:
-            if elem["originalPrice"] > 0:
-                all_costs.append(elem["originalPrice"])
+        for elem in more_info["data"]:
+            if elem["catalogName"].lower() != producer:
+                continue
+            if elem["price"] > 0:
+                all_costs.append(elem["price"])
+            if "deliveryDays" in elem and elem["deliveryDays"] is not None:
+                all_delivery_days.append(elem["deliveryDays"])
+            if elem["price"] > 0 and "deliveryDays" in elem and elem["deliveryDays"] is not None:
+                variants.append({"cost": elem["price"], "delivery_days": elem["deliveryDays"]})
+
+        result_output = {"parser_name": self.parser_name}
         if len(all_costs) == 0:
-            return {"parser_name": self.parser_name, "costs": None}
-        if len(all_costs) == 1:
-            return {"parser_name": self.parser_name, "costs": all_costs}
-        return {"parser_name": self.parser_name, "costs": [min(all_costs), max(all_costs)]}
+            result_output["costs"] = None
+        elif len(all_costs) == 1:
+            result_output["costs"] = all_costs
+        else:
+            result_output["costs"] = [min(all_costs), max(all_costs)]
+
+        if len(all_delivery_days) == 0:
+            result_output["delivery_days"] = None
+        elif len(all_delivery_days) == 1:
+            result_output["delivery_days"] = all_delivery_days
+        else:
+            result_output["delivery_days"] = [min(all_delivery_days), max(all_delivery_days)]
+
+        result_output["variants"] = variants
+
+        return result_output
 
 
 if __name__ == "__main__":
@@ -515,9 +617,11 @@ if __name__ == "__main__":
     parser2 = ParserTrackMotors()
     parser3 = ParserAutoPiter()
 
-    print(parser1.parsing_article("30219", "BRINGER LIGHT"))
-    print(parser2.parsing_article("30219", "BRINGER LIGHT"))
-    print(parser3.parsing_article("30219", "BRINGER LIGHT"))
+    pprint(parser1.parsing_article("79533600", "KOLBENSCHMIDT"))
+
+    # print(parser1.parsing_article("30219", "BRINGER LIGHT"))
+    # pprint(parser2.parsing_article("30219", "BRINGER LIGHT"))
+    # print(parser3.parsing_article("30219", "BRINGER LIGHT"))
     # print(parser1.parsing_article("'30219", "BRINGER LIGHT"))
     # print(parser1.parsing_article("'30219"))
     # print(parser3.parsing_article("W363589026300", "DAIMLER AG,MB,MERCEDES,MERCEDES BENZ,MERCEDES BENZ REMAN,MERCEDESBENZ,MERSEDES BENZ,OE MERCEDES,OE MERCEDES BENZ"))  # 003310, 85696, 00-00000114, 40119
