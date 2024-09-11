@@ -85,15 +85,17 @@ class ParserKomTrans(BaseParser):  # https://www.comtt.ru/
                                     "pass": auth_data[self.parser_name]["password"]}
         self.auth_url = "https://www.comtt.ru/login.php"
         self.search_url = "https://www.comtt.ru/search.php"
+        self.waiting_time = 15
 
         self._authorization_api_dict = {"login": auth_data[self.parser_name]["login"],
                                         "password": auth_data[self.parser_name]["password"]}
         self.api_auth_url = "http://catalogs.comtt.ru/api/login.php"
         self.api_search_url = "http://catalogs.comtt.ru/api/search.php"
-        self.waiting_time = 15
+        self.api_waiting_time = 10
 
     @func_timer
-    def parsing_article(self, article: str, producer: str | None = None, api_version: bool = True) -> dict[str: None | list[int]]:
+    def parsing_article(self, article: str, producer: str | None = None,
+                        api_version: bool = True, waiting_flag: bool = False) -> dict[str: None | list[int]]:
         if api_version:
             auth_data = json.load(open("authorization.json", "r"))
             if "token" in auth_data[self.parser_name].keys():
@@ -105,8 +107,11 @@ class ParserKomTrans(BaseParser):  # https://www.comtt.ru/
                 auth_data[self.parser_name]["token"] = auth_token
                 open("authorization.json", "w").write(json.dumps(auth_data))
 
-            api_search_resp = requests.post(self.api_search_url, json={"search": article, "token": auth_token})
+            api_search_resp = requests.post(self.api_search_url,
+                                            json={"search": article, "token": auth_token})
             pprint(json.loads(api_search_resp.content))
+            if waiting_flag:
+                time.sleep(self.waiting_time)
 
             """result_output = {"parser_name": self.parser_name}
             if len(all_costs) == 0:
@@ -617,7 +622,7 @@ if __name__ == "__main__":
     parser2 = ParserTrackMotors()
     parser3 = ParserAutoPiter()
 
-    pprint(parser1.parsing_article("79533600", "KOLBENSCHMIDT"))
+    pprint(parser1.parsing_article("30219", "KOLBENSCHMIDT"))  # 79533600
 
     # print(parser1.parsing_article("30219", "BRINGER LIGHT"))
     # pprint(parser2.parsing_article("30219", "BRINGER LIGHT"))
