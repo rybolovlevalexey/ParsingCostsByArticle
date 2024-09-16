@@ -20,8 +20,8 @@ def test_files():
     url = "http://127.0.0.1:8000/costs_by_file"
     url_faster = "http://127.0.0.1:8000/costs_by_file_costs_by_file_fastest"
 
-    file_path = "../укороченный новый файл.xlsx"
-    new_file_path = "../Товары1.xlsx"
+    file_path = "../input_files/укороченный новый файл.xlsx"
+    new_file_path = "../input_files/Товары1.xlsx"
 
     with open(new_file_path, "rb") as file:
         files = {"file": file}
@@ -58,7 +58,7 @@ def test_online_one_art():
 
 def test_selectively_auto_piter():
     url = "http://127.0.0.1:8000/costs_by_file_selectively"
-    file_path = "../Ост 20240820 мерс_норм.xlsx"
+    file_path = "../input_files/Ост 20240820 мерс_норм.xlsx"
 
     data = {
         "parsers_on": {
@@ -74,7 +74,7 @@ def test_selectively_auto_piter():
 
 def test_selectively_kom_trans():
     url = "http://127.0.0.1:8000/costs_by_file_selectively"
-    file_path = "../Ост 20240820 мерс_норм.xlsx"
+    file_path = "../input_files/Ост 20240820 мерс_норм.xlsx"
 
     data = {
         "parsers_on": {
@@ -97,10 +97,11 @@ def test_post_new_user():
 def test_json_info():
     url = "http://127.0.0.1:8000/costs_by_json"
 
-    resp = requests.post(url, data={"info": json.dumps([
+    resp = requests.post(url, data=json.dumps({"info": [
         {"article": "A4722000154", "producer": "MERCEDES-BENZ"},
         {"article": "WG9925955059", "producer": "HOWO"}
-    ])})
+    ]}))
+
     pprint(json.loads(resp.content))
 
 

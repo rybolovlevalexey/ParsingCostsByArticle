@@ -2,6 +2,7 @@ import time
 from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException, File, UploadFile, Form, Request
 from fastapi.responses import JSONResponse
+from fastapi import APIRouter
 from parsing import ParserKomTrans, ParserTrackMotors, ParserAutoPiter
 from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
@@ -20,6 +21,7 @@ class NewUser(BaseModel):
 
 app = FastAPI(title="Parsing product costs by its article",
               version="1.0.0")
+# router_v1 = APIRouter(prefix="/v1")
 
 
 @app.get("/costs_by_article/{article}")
@@ -324,24 +326,28 @@ def post_costs_by_file_selectively(info: str = Form(...), file: UploadFile = Fil
         return {"done": True, "codes_counter": dict_codes_result}
 
 
-@app.post("/costs_by_json")
-def post_costs_by_json(info: str = Form(...)):
-    info_json = json.loads(info)
+@app.post("/costs_by_json",
+          summary="Получение информации в формате json",
+          description="Получение информации в формате json о ценах и сроках поставки по артикулу и производителю, "
+                      "переданных в формате json. Одновременный парсинг сайтов КомТранс, ТракМоторс, АвтоПитер.")
+async def post_costs_by_json(request: Request):  # info: str = Form(...)
+    info = await request.json()
+    print(info)
     output_info = list()
 
-    for elem in info_json:
+    for elem in info["info"]:
         row_article, row_prod = elem["article"], elem["producer"]
         with ThreadPoolExecutor(max_workers=3) as executor:
             parser1, parser2, parser3 = ParserKomTrans(), ParserTrackMotors(), ParserAutoPiter()
             futures = [
-                # executor.submit(parser1.parsing_article, row_article, row_prod),
+                executor.submit(parser1.parsing_article, row_article, row_prod, True, False),
                 executor.submit(parser2.parsing_article, row_article, row_prod, True),
                 executor.submit(parser3.parsing_article, row_article, row_prod)
             ]
             row_results = [future.result() for future in futures]
         print(row_results)
         output_info.append({"article": row_article, "results": row_results})
-    return json.dumps(output_info)
+    return output_info
 
 
 @app.post("/create_user")

@@ -622,7 +622,7 @@ if __name__ == "__main__":
     parser2 = ParserTrackMotors()
     parser3 = ParserAutoPiter()
 
-    pprint(parser1.parsing_article("30219", "KOLBENSCHMIDT"))  # 79533600
+    pprint(parser1.parsing_article("30219", "BRINGER LIGHT"))  # 79533600
 
     # print(parser1.parsing_article("30219", "BRINGER LIGHT"))
     # pprint(parser2.parsing_article("30219", "BRINGER LIGHT"))
