@@ -1,12 +1,11 @@
 import json
 import requests
 
-from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, and_, or_
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey, and_, or_
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-
-engine = create_engine('sqlite:///parsing_info.sqlite', echo=True)  # создание базы
+engine = create_engine('sqlite:///database.sqlite', echo=True)  # создание базы
 Base = declarative_base()  # создание базового класса
 
 
@@ -48,13 +47,30 @@ class ProducerSynonyms(Base):
     all_names = Column(String, nullable=False)
 
 
+class UserParsers(Base):
+    __tablename__ = "users_parsers"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id'))
+    parsers_id_list = Column(String, nullable=False)  # список id парсеров (разделитель - ";"), используемых user
+
+
+class ParserInfo(Base):
+    __tablename__ = "parsers_info"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    parser_name = Column(String, nullable=False)
+    base_url = Column(String, nullable=False)
+    parser_site_done = Column(Boolean, default=False)
+    parser_api_done = Column(Boolean, default=False)
+
 # создание всех описанных таблиц
 # Base.metadata.create_all(engine)
 
 
 class DatabaseActions:
     def __init__(self):
-        self.engine = create_engine('sqlite:///parsing_info.sqlite', echo=True)
+        self.engine = create_engine('sqlite:///database.sqlite', echo=True)
         # создание сессии
         Session = sessionmaker(bind=self.engine)
         self.session = Session()
@@ -66,6 +82,21 @@ class DatabaseActions:
         self.session.commit()
         return True
 
+    def get_user_id(self, login: str, password: str) -> int | Column[int]:
+        user_result = self.session.query(User).filter_by(login=login, password=password).one_or_none()
+        if user_result is None:
+            return -1
+        return user_result.id
+
+    def add_new_site(self, user_id: int, web_site: str, login: str, password: str) -> bool:
+        if len(self.session.query(AuthData).filter(
+                and_(AuthData.user_id == user_id, AuthData.website_name == web_site)).all()) > 0:
+            return False
+        self.session.add(AuthData(user_id=user_id, website_name=web_site, login=login, password=password))
+        self.session.commit()
+        return True
+
+    # заполнение таблицы бд с синонимами автомобильных брендов
     def filling_synonyms_database(self):
         for brand_id in range(1, 2629):
             url = (f"https://olimpgroup.auto-vision.ru/api/v1/brands/{brand_id}/"
@@ -77,5 +108,10 @@ class DatabaseActions:
         print("Синонимы по всем брендам скачаны с помощью стороннего api успешно")
 
 
+# TODO: подумать над добавлением информации о новом сайте;
+#  как записывать сайт: писать название парсера или базовую ссылку,
+#  может быть сделать отдельную БД с информацией по каждому сделанному парсеру
+
 if __name__ == "__main__":
-    pass
+    bd_act = DatabaseActions()
+    # print(bd_act.add_new_site(bd_act.get_user_id(), ""))

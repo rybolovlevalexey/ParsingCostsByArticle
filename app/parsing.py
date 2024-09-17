@@ -1,5 +1,4 @@
 from datetime import datetime
-
 import requests
 from fake_useragent import UserAgent
 import pickle
