@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import requests
 from fake_useragent import UserAgent
 import pickle
@@ -78,6 +78,7 @@ class BaseParser:
 
 class ParserKomTrans(BaseParser):  # https://www.comtt.ru/
     parser_name = "kom_trans"
+    # http://catalogs.comtt.ru/api/ документация по api
 
     def __init__(self):
         self.cur_session = requests.Session()
@@ -97,6 +98,8 @@ class ParserKomTrans(BaseParser):  # https://www.comtt.ru/
     @func_timer
     def parsing_article(self, article: str, producer: str | None = None,
                         api_version: bool = True, waiting_flag: bool = False) -> dict[str: None | list[int]]:
+        if waiting_flag:
+            time.sleep(self.waiting_time)
         if api_version:
             auth_data = json.load(open("authorization.json", "r"))
             if "token" in auth_data[self.parser_name].keys():
@@ -110,11 +113,45 @@ class ParserKomTrans(BaseParser):  # https://www.comtt.ru/
 
             api_search_resp = requests.post(self.api_search_url,
                                             json={"search": article, "token": auth_token})
-            pprint(json.loads(api_search_resp.content))
-            if waiting_flag:
-                time.sleep(self.waiting_time)
+            search_result = json.loads(api_search_resp.content)
+            # pprint(search_result)
 
-            """result_output = {"parser_name": self.parser_name}
+            if "search_result" not in search_result or search_result["search_result"] == "Ничего не найдено!":
+                return {"parser_name": self.parser_name, "error": "По переданному артикулу ничего не найдено"}
+
+            all_costs: list[float] = list()
+            all_delivery_days = list()
+            variants: list[dict[str: int | None]] = list()
+
+            for key, value in search_result["search_result"].items():
+                if key == "код_валюты":
+                    continue
+                if ("артикул" not in value or value["артикул"] != article.strip()
+                        or producer is not None and
+                        ("производитель" not in value or value["производитель"].strip().lower() != producer.lower())):
+                    continue
+
+                if "цена" in value and value["цена"] is not None:
+                    all_costs.append(float(value["цена"]))
+
+                if "остатки" not in value:
+                    variants.append({"cost": float(value["цена"]), "delivery_days": None})
+                else:
+                    for line in value["остатки"]:
+                        seconds_since_2000 = int(line["срок_доставки_в_сек"])  # 779997600
+                        start_date = datetime(2000, 1, 1)
+                        target_date = start_date + timedelta(seconds=seconds_since_2000)
+                        current_date = datetime.now()
+                        difference = abs(current_date - target_date)
+                        days_difference = difference.days
+
+
+                        all_delivery_days.append(days_difference)
+                        variants.append({"cost": float(value["цена"]), "delivery_days": days_difference})
+
+
+            # создание и наполнение итогового словаря
+            result_output = {"parser_name": self.parser_name}
             if len(all_costs) == 0:
                 result_output["costs"] = None
             elif len(all_costs) == 1:
@@ -131,8 +168,7 @@ class ParserKomTrans(BaseParser):  # https://www.comtt.ru/
 
             result_output["variants"] = variants
 
-            return result_output"""
-            return api_search_resp  # TODO: это исправить, тут должен быть нормальный ответ, а не возвращать ответ сайта
+            return result_output
         else:
             chrome_options = Options()
             chrome_options.add_argument(
@@ -255,25 +291,28 @@ class ParserTrackMotors(BaseParser):  # https://market.tmtr.ru
     @func_timer
     def parsing_article(self, article: str, producer: str | None = None,
                         api_version: bool = True, waiting_flag: bool = False) -> dict[str: None | list[float]]:
+        if waiting_flag:
+            time.sleep(5)
         if api_version:
-            result_output = {"parser_name": self.parser_name}
             # надо учесть, что бренд может быть None
             if producer is None:
-                print("Без информации о необходимом производителе невозможно получить однозначную информацию")
+                # print("Без информации о необходимом производителе невозможно получить однозначную информацию")
                 return {"parser_name": self.parser_name, "error": "no info about producer or brand"}
             resp = requests.post(self.search_url, headers=self._authorization_dict,
                                  json={"article": article, "brand": producer})
             if resp.status_code == 200:
-                print(f"Получен корректный ответ по артикулу {article} в парсере {self.parser_name}")
+                # print(f"Получен корректный ответ по артикулу {article} в парсере {self.parser_name}")
+                pass
             else:
-                print(f"Получен НЕ корректный ответ по артикулу {article} в парсере {self.parser_name}")
+                # print(f"Получен НЕ корректный ответ по артикулу {article} в парсере {self.parser_name}")
+                return {"parser_name": self.parser_name, "error": f"получен некорректный ответ по артикулу {article}"}
             # pprint(json.dumps(resp.content.decode("utf-8")))
             if resp.text.endswith('{"d":null}'):
                 resp_content = resp.text[:-10]
             else:
                 resp_content = resp.text
             json_data = json.loads(resp_content)
-            print("json_data", json_data)
+            # print("json_data", json_data)
             all_costs = list()
             all_delivery_days = list()
             all_variants = list()
@@ -295,12 +334,16 @@ class ParserTrackMotors(BaseParser):  # https://market.tmtr.ru
                 except Exception:
                     break
             if len(all_costs) > 0:
-                print(f"Цены в парсере {self.parser_name} обработаны успешно: "
-                      f"минимум - {min(all_costs)}, максимум - {max(all_costs)}")
+                # print(f"Цены в парсере {self.parser_name} обработаны успешно: "
+                #       f"минимум - {min(all_costs)}, максимум - {max(all_costs)}")
+                pass
             else:
-                print(f"По артикулу {article} и производителю {producer} "
-                      f"в парсере {self.parser_name} ничего не найдено")
+                # print(f"По артикулу {article} и производителю {producer} "
+                #       f"в парсере {self.parser_name} ничего не найдено")
+                pass
 
+            # создание и наполнение итогового словаря
+            result_output = {"parser_name": self.parser_name}
             if len(all_costs) == 0:
                 result_output["costs"] = list()
             elif len(all_costs) == 1:
@@ -435,6 +478,8 @@ class ParserAutoPiter(BaseParser):  # https://autopiter.ru/
         # self.search_url = ""
         self.waiting_time = 10
 
+    # TODO: разобраться с парсером авто питер - одновременно производятся запросы двумя разными вариантами
+    #  + есть лишние запросы на постоянную авторизацию, от котрой можно избавиться
     @func_timer
     def parsing_article(self, article: str, producer: str | None = None,
                         api_version: bool = True, waiting_flag: bool = False) -> dict[str: None | list[int]]:
@@ -470,7 +515,7 @@ class ParserAutoPiter(BaseParser):  # https://autopiter.ru/
 
         resp_costs = self.cur_session.get(costs_url, headers={"User-Agent": user_agent})
         json_content = json.loads(resp_costs.content)
-        pprint(json_content)
+        # pprint(json_content)
 
         more_info_search = self.cur_session.get(url_more_info, headers={"User-Agent": user_agent})
         more_info = json.loads(more_info_search.content)
@@ -496,6 +541,7 @@ class ParserAutoPiter(BaseParser):  # https://autopiter.ru/
             if elem["price"] > 0 and "deliveryDays" in elem and elem["deliveryDays"] is not None:
                 variants.append({"cost": elem["price"], "delivery_days": elem["deliveryDays"]})
 
+        # создание и наполнение итогового словаря
         result_output = {"parser_name": self.parser_name}
         if len(all_costs) == 0:
             result_output["costs"] = list()
@@ -523,3 +569,5 @@ if __name__ == "__main__":
 
     # AZ9925520250 HOWO
     # pprint(parser1.parsing_article("30219", "BRINGER LIGHT"))
+    # print(parser1.parsing_article("30219", "BRINGER LIGHT"))
+    print(parser1.parsing_article("1802905005830", "ROSTAR"))
