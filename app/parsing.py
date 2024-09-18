@@ -34,6 +34,28 @@ class BaseParser:
                         api_version: bool = True, waiting_flag: bool = False) -> dict[str: None | list[int | float]]:
         pass
 
+    def create_output_json(self, costs: list[float | int], delivery_days: list[int],
+                           delivery_variants: list[dict]):
+        # создание и наполнение итогового словаря
+        result_output_dict = {"parser_name": self.parser_name}
+        if len(costs) == 0:
+            result_output_dict["costs"] = list()
+        elif len(costs) == 1:
+            result_output_dict["costs"] = costs
+        else:
+            result_output_dict["costs"] = [min(costs), max(costs)]
+
+        if len(delivery_days) == 0:
+            result_output_dict["delivery_days"] = list()
+        elif len(delivery_days) == 1:
+            result_output_dict["delivery_days"] = delivery_days
+        else:
+            result_output_dict["delivery_days"] = [min(delivery_days), max(delivery_days)]
+
+        result_output_dict["variants"] = delivery_variants
+
+        return result_output_dict
+
     @staticmethod
     def auth_selenium(driver, authorization_dict: dict[str, str], flag_sleep=False):
         """Метод для выполнения авторизации на сайте
@@ -120,7 +142,7 @@ class ParserKomTrans(BaseParser):  # https://www.comtt.ru/
                 return {"parser_name": self.parser_name, "error": "По переданному артикулу ничего не найдено"}
 
             all_costs: list[float] = list()
-            all_delivery_days = list()
+            all_delivery_days: list[int] = list()
             variants: list[dict[str: int | None]] = list()
 
             for key, value in search_result["search_result"].items():
@@ -145,29 +167,10 @@ class ParserKomTrans(BaseParser):  # https://www.comtt.ru/
                         difference = abs(current_date - target_date)
                         days_difference = difference.days
 
-
                         all_delivery_days.append(days_difference)
                         variants.append({"cost": float(value["цена"]), "delivery_days": days_difference})
 
-
-            # создание и наполнение итогового словаря
-            result_output = {"parser_name": self.parser_name}
-            if len(all_costs) == 0:
-                result_output["costs"] = None
-            elif len(all_costs) == 1:
-                result_output["costs"] = all_costs
-            else:
-                result_output["costs"] = [min(all_costs), max(all_costs)]
-
-            if len(all_delivery_days) == 0:
-                result_output["delivery_days"] = None
-            elif len(all_delivery_days) == 1:
-                result_output["delivery_days"] = all_delivery_days
-            else:
-                result_output["delivery_days"] = [min(all_delivery_days), max(all_delivery_days)]
-
-            result_output["variants"] = variants
-
+            result_output = self.create_output_json(all_costs, all_delivery_days, variants)
             return result_output
         else:
             chrome_options = Options()
@@ -342,26 +345,8 @@ class ParserTrackMotors(BaseParser):  # https://market.tmtr.ru
                 #       f"в парсере {self.parser_name} ничего не найдено")
                 pass
 
-            # создание и наполнение итогового словаря
-            result_output = {"parser_name": self.parser_name}
-            if len(all_costs) == 0:
-                result_output["costs"] = list()
-            elif len(all_costs) == 1:
-                result_output["costs"] = all_costs
-            else:
-                result_output["costs"] = [min(all_costs), max(all_costs)]
-
-            if len(all_delivery_days) == 0:
-                result_output["delivery_days"] = list()
-            elif len(all_delivery_days) == 1:
-                result_output["delivery_days"] = all_delivery_days
-            else:
-                result_output["delivery_days"] = [min(all_delivery_days), max(all_delivery_days)]
-
-            result_output["variants"] = all_variants
-
+            result_output = self.create_output_json(all_costs, all_delivery_days, all_variants)
             return result_output
-
         else:
             chrome_options = Options()
             chrome_options.add_argument(
@@ -478,11 +463,14 @@ class ParserAutoPiter(BaseParser):  # https://autopiter.ru/
         # self.search_url = ""
         self.waiting_time = 10
 
-    # TODO: разобраться с парсером авто питер - одновременно производятся запросы двумя разными вариантами
-    #  + есть лишние запросы на постоянную авторизацию, от котрой можно избавиться
     @func_timer
     def parsing_article(self, article: str, producer: str | None = None,
                         api_version: bool = True, waiting_flag: bool = False) -> dict[str: None | list[int]]:
+        pass
+
+    @func_timer
+    def old_parsing_article(self, article: str, producer: str | None = None,
+                            api_version: bool = True, waiting_flag: bool = False) -> dict[str: None | list[int]]:
         user_agent = UserAgent().random
         search_url = f"https://autopiter.ru/api/api/searchdetails?detailNumber={article}&isFullQuery=true"
         costs_url = "https://autopiter.ru/api/api/appraise/getcosts?"
@@ -570,4 +558,4 @@ if __name__ == "__main__":
     # AZ9925520250 HOWO
     # pprint(parser1.parsing_article("30219", "BRINGER LIGHT"))
     # print(parser1.parsing_article("30219", "BRINGER LIGHT"))
-    print(parser1.parsing_article("1802905005830", "ROSTAR"))
+    print(parser2.parsing_article("1802905005830", "ROSTAR"))
