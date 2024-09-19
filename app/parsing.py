@@ -6,6 +6,7 @@ import os
 from pprint import pprint
 import time
 import json
+import xmltodict
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -23,6 +24,7 @@ def func_timer(func):
         result_time = end_time - start_time
         print(f"Время выполнения запроса {result_time:.4f} секунд")
         return func_result
+
     return wrapper
 
 
@@ -33,6 +35,16 @@ class BaseParser:
     def parsing_article(self, article: str, producer: str | None = None,
                         api_version: bool = True, waiting_flag: bool = False) -> dict[str: None | list[int | float]]:
         pass
+
+    @staticmethod
+    def cleaning_input_article(input_article: str) -> str:
+        # в артикуле могут быть цифры, буквы различного регистра, знак тире
+        result_article = ""
+        for elem in input_article:
+            if elem.isalpha() or elem.isdigit() or elem == "-" or elem == "—":
+                result_article += elem
+
+        return result_article
 
     def create_output_json(self, costs: list[float | int], delivery_days: list[int],
                            delivery_variants: list[dict]):
@@ -98,8 +110,10 @@ class BaseParser:
             pickle.dump(cookies, file)
 
 
-class ParserKomTrans(BaseParser):  # https://www.comtt.ru/
+# https://www.comtt.ru/
+class ParserKomTrans(BaseParser):
     parser_name = "kom_trans"
+
     # http://catalogs.comtt.ru/api/ документация по api
 
     def __init__(self):
@@ -120,6 +134,7 @@ class ParserKomTrans(BaseParser):  # https://www.comtt.ru/
     @func_timer
     def parsing_article(self, article: str, producer: str | None = None,
                         api_version: bool = True, waiting_flag: bool = False) -> dict[str: None | list[int]]:
+        article = self.cleaning_input_article(article)
         if waiting_flag:
             time.sleep(self.waiting_time)
         if api_version:
@@ -244,20 +259,22 @@ class ParserKomTrans(BaseParser):  # https://www.comtt.ru/
             info_by_article = list()
             for line in content.find_element(By.CSS_SELECTOR,
                                              f"{tag_name}.{class_name}").find_elements(
-                    By.TAG_NAME, "tr"):
+                By.TAG_NAME, "tr"):
                 info_by_article.append([line.find_elements(By.TAG_NAME, "td")[1].text.strip(),  # артикул
                                         line.find_elements(By.TAG_NAME, "td")[2].text.strip(),  # производитель
                                         line.find_elements(By.TAG_NAME, "td")[6].text.strip()])  # цена
             print(f"Кол-во товаров найденных по артикулу {len(info_by_article)}")
             if producer is None:
-                info_by_article = list(map(lambda info_elem: [info_elem[0], info_elem[1], float(info_elem[2].split()[0])],
-                                           filter(lambda info_part: info_part[0] == article, info_by_article)))
+                info_by_article = list(
+                    map(lambda info_elem: [info_elem[0], info_elem[1], float(info_elem[2].split()[0])],
+                        filter(lambda info_part: info_part[0] == article, info_by_article)))
                 print(f"Кол-во товаров с точным соответствием артикула {len(info_by_article)}")
             else:
-                info_by_article = list(map(lambda info_elem: [info_elem[0], info_elem[1], float(info_elem[2].split()[0])],
-                                           filter(lambda info_part:
-                                                  info_part[0] == article and info_part[1].lower() == producer.lower(),
-                                                  info_by_article)))
+                info_by_article = list(
+                    map(lambda info_elem: [info_elem[0], info_elem[1], float(info_elem[2].split()[0])],
+                        filter(lambda info_part:
+                               info_part[0] == article and info_part[1].lower() == producer.lower(),
+                               info_by_article)))
                 print(f"Кол-во товаров с точным соответствием артикула и производителя {len(info_by_article)}")
             info_by_article = sorted(info_by_article, key=lambda info_part: info_part[2])
             pprint(info_by_article)
@@ -274,7 +291,8 @@ class ParserKomTrans(BaseParser):  # https://www.comtt.ru/
             return {"parser_name": self.parser_name, "costs": [info_by_article[0][2], info_by_article[-1][2]]}
 
 
-class ParserTrackMotors(BaseParser):  # https://market.tmtr.ru
+# https://market.tmtr.ru
+class ParserTrackMotors(BaseParser):
     parser_name = "track_motors"
 
     # session = requests.Session()
@@ -294,6 +312,7 @@ class ParserTrackMotors(BaseParser):  # https://market.tmtr.ru
     @func_timer
     def parsing_article(self, article: str, producer: str | None = None,
                         api_version: bool = True, waiting_flag: bool = False) -> dict[str: None | list[float]]:
+        article = self.cleaning_input_article(article)
         if waiting_flag:
             time.sleep(5)
         if api_version:
@@ -451,7 +470,8 @@ class ParserTrackMotors(BaseParser):  # https://market.tmtr.ru
             return {"parser_name": self.parser_name, "costs": [info_by_article[0][2], info_by_article[-1][2]]}
 
 
-class ParserAutoPiter(BaseParser):  # https://autopiter.ru/
+# https://autopiter.ru/
+class ParserAutoPiter(BaseParser):
     parser_name = "auto_piter"
 
     def __init__(self):
@@ -460,13 +480,50 @@ class ParserAutoPiter(BaseParser):  # https://autopiter.ru/
         self._authorization_dict = {"login": auth_data[self.parser_name]["login"],
                                     "password": auth_data[self.parser_name]["password"]}
         self.auth_url = "https://autopiter.ru/api/graphql"
-        # self.search_url = ""
+
+        self.api_auth_url = "http://www.autopiter.ru/Authorization"
         self.waiting_time = 10
 
     @func_timer
     def parsing_article(self, article: str, producer: str | None = None,
                         api_version: bool = True, waiting_flag: bool = False) -> dict[str: None | list[int]]:
-        pass
+        article = self.cleaning_input_article(article)
+
+        # auth_resp = self.cur_session.post(self.api_auth_url, data={"UserID": self._authorization_dict["login"],
+        #                                                            "Password": self._authorization_dict["password"],
+        #                                                            "Save": True})
+        # pprint(auth_resp.text)
+        # URL для запроса
+        auth_url = "http://service.autopiter.ru/v2/price"
+
+        # Заголовки запроса
+        headers = {
+            "Content-Type": "text/xml; charset=utf-8",
+            "SOAPAction": "http://www.autopiter.ru/Authorization"
+        }
+
+        # Тело запроса на авторизацию (SOAP)
+        auth_body = f'''<?xml version="1.0" encoding="utf-8"?>
+        <soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+                       xmlns:xsd="http://www.w3.org/2001/XMLSchema" 
+                       xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+          <soap:Body>
+            <Authorization xmlns="http://www.autopiter.ru/">
+              <UserID>{self._authorization_dict["login"]}</UserID>
+              <Password>{self._authorization_dict["password"]}</Password>
+              <Save>true</Save> <!-- или false в зависимости от вашего запроса -->
+            </Authorization>
+          </soap:Body>
+        </soap:Envelope>'''
+
+        auth_resp = requests.post(auth_url, headers=headers, data=auth_body)
+        resp_dict = json.loads(json.dumps(xmltodict.parse(auth_resp.text)))
+
+        if resp_dict["soap:Envelope"]["soap:Body"]["AuthorizationResponse"]["AuthorizationResult"]:
+            pass
+
+        # Вывод ответа
+        pprint(resp_dict)
 
     @func_timer
     def old_parsing_article(self, article: str, producer: str | None = None,
@@ -556,6 +613,6 @@ if __name__ == "__main__":
     parser3 = ParserAutoPiter()
 
     # AZ9925520250 HOWO
-    # pprint(parser1.parsing_article("30219", "BRINGER LIGHT"))
     # print(parser1.parsing_article("30219", "BRINGER LIGHT"))
-    print(parser2.parsing_article("1802905005830", "ROSTAR"))
+    # print(parser1.parsing_article("AZ9925520250", "HOWO"))
+    # print(parser1.parsing_article("1802905005830", "ROSTAR"))
