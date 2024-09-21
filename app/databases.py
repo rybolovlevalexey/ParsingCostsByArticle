@@ -96,7 +96,8 @@ class DatabaseActions:
         if len(self.session.query(AuthData).filter(
                 and_(AuthData.user_id == user_id, AuthData.website_name == web_site)).all()) > 0:
             return False
-        self.session.add(AuthData(user_id=user_id, website_name=web_site, login=login, password=password))
+        self.session.add(AuthData(user_id=user_id, website_name=web_site, login=login,
+                                  password=password))
         self.session.commit()
         return True
 
@@ -114,4 +115,5 @@ class DatabaseActions:
 
 if __name__ == "__main__":
     bd_act = DatabaseActions()
+    # print(bd_act.get_user_id(login="admin", password="admin_password"))
     # print(bd_act.add_new_site(bd_act.get_user_id(), ""))
