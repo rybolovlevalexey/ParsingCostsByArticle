@@ -37,6 +37,10 @@ class AuthData(Base):
     website_name = Column(String, nullable=False)
     login = Column(String, nullable=False)
     password = Column(String, nullable=False)
+    # Токен полученный от сайта - используется например на сайте ком транс
+    site_token = Column(String, nullable=True, default=None)
+    # ID пользователя на конкретном сайте - например на сайте авто питер
+    site_id = Column(String, nullable=True, default=None)
 
 
 class ProducerSynonyms(Base):
@@ -108,12 +112,6 @@ class DatabaseActions:
         self.session.commit()
         print("Синонимы по всем брендам скачаны с помощью стороннего api успешно")
 
-
-# TODO: подумать над добавлением информации о новом сайте;
-#  как записывать сайт: писать название парсера или базовую ссылку,
-#  может быть сделать отдельную БД с информацией по каждому сделанному парсеру
-
-# TODO: переписать добавление нового сайта с использованием асинхронного программирования
 
 if __name__ == "__main__":
     bd_act = DatabaseActions()

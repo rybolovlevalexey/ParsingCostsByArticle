@@ -23,11 +23,11 @@ async def post_costs_by_json(request: Request):  # info: str = Form(...)
     info = await request.json()
     print(info)
     output_info = list()
+    parser1, parser2, parser3 = ParserKomTrans(), ParserTrackMotors(), ParserAutoPiter()
 
     for elem in info["info"]:
         row_article, row_prod = elem["article"], elem["producer"]
         with ThreadPoolExecutor(max_workers=3) as executor:
-            parser1, parser2, parser3 = ParserKomTrans(), ParserTrackMotors(), ParserAutoPiter()
             futures = [
                 executor.submit(parser1.parsing_article, row_article, row_prod, True, False),
                 executor.submit(parser2.parsing_article, row_article, row_prod, True, False),
