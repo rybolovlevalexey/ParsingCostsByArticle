@@ -65,6 +65,7 @@ class BaseParser:
             result_output_dict["delivery_days"] = [min(delivery_days), max(delivery_days)]
 
         result_output_dict["variants"] = delivery_variants
+        result_output_dict["variants_count"] = len(delivery_variants)
 
         return result_output_dict
 
@@ -334,12 +335,14 @@ class ParserTrackMotors(BaseParser):
             else:
                 resp_content = resp.text
             json_data = json.loads(resp_content)
-            # print("json_data", json_data)
+            # pprint(json_data)
             all_costs = list()
             all_delivery_days = list()
             all_variants = list()
 
             for elem in json_data:
+                if elem["Article"] != article or elem["Producer"].lower().strip() != producer.lower().strip():
+                    continue
                 try:
                     all_costs.append(float(elem["Price"]))
                     if datetime.fromisoformat(elem["DeliveryDate"]) >= datetime.now():
