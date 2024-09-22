@@ -1,11 +1,11 @@
 import json
 import requests
 
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey, and_, or_
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey, and_, or_, select, update, insert
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
 
-engine = create_engine('sqlite:///database.sqlite', echo=True)  # создание базы
+engine = create_engine('sqlite:///database.sqlite', echo=False)  # создание базы
 Base = declarative_base()  # создание базового класса
 
 
@@ -63,7 +63,7 @@ class ParserInfo(Base):
     __tablename__ = "parsers_info"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    parser_name = Column(String, nullable=False)
+    parser_name = Column(String, unique=True, nullable=False)
     base_url = Column(String, nullable=False)
     parser_site_done = Column(Boolean, default=False)
     parser_api_done = Column(Boolean, default=False)
@@ -86,12 +86,14 @@ class DatabaseActions:
         self.session.commit()
         return True
 
+    # получение id пользователя по переданным логину и паролю, если логин и пароль неверные будет получено -1
     def get_user_id(self, login: str, password: str) -> int | Column[int]:
         user_result = self.session.query(User).filter_by(login=login, password=password).one_or_none()
         if user_result is None:
             return -1
         return user_result.id
 
+    # добавление нового сайта для конкретного пользователя, с необходимыми для авторизации на этом сайте данными
     def add_new_site(self, user_id: int, web_site: str, login: str, password: str) -> bool:
         if len(self.session.query(AuthData).filter(
                 and_(AuthData.user_id == user_id, AuthData.website_name == web_site)).all()) > 0:
@@ -100,6 +102,45 @@ class DatabaseActions:
                                   password=password))
         self.session.commit()
         return True
+
+    # получение id парсера по его имени, если такого парсера нет - будет получен -1
+    def get_parser_id_by_name(self, parser_name: str) -> int:
+        with Session(self.engine) as session:
+            query = select(ParserInfo.id).where(ParserInfo.parser_name == parser_name)
+            parser_id = session.execute(query).scalar_one_or_none()
+            if parser_id is None:
+                return -1
+            return parser_id
+
+    # Установка парсеров по умолчанию для конкретного пользователя.
+    # Возвращает список id парсеров, которых не существует.
+    # Если возвращает пустой список, то вся переданная информация успешно сохранена
+    def set_default_parsers(self, user_id: int, parsers_id_final: list[int]) -> list[int]:
+        bad_ids: list[int] = list()  # Список с плохими id парсеров, т.е. парсера с таким id не существует
+
+        with Session(self.engine) as session:
+            # проверка списка с id парсеров
+            for parser_id in parsers_id_final:
+                parsers_count = session.query(ParserInfo).filter(ParserInfo.id == parser_id).count()
+                if parsers_count == 0:
+                    bad_ids.append(parser_id)
+
+            # создание строки с id пасеров по умолчанию только тех, которые прошли проверку на существование
+            st_id_parsers = ""
+            for parser_id in parsers_id_final:
+                if parser_id not in bad_ids:
+                    st_id_parsers += str(parser_id) + ";"
+
+            # если о пользователе уже есть инфа с его парсерами по умолчанию, тогда update
+            if session.query(UserParsers).filter(UserParsers.user_id == user_id).count() > 0:
+                query = update(UserParsers).where(UserParsers.user_id == user_id).values(parsers_id_list=st_id_parsers)
+            # иначе insert - создание новой записи
+            else:
+                query = insert(UserParsers).values(user_id=user_id, parsers_id_list=st_id_parsers)
+            session.execute(query)
+            session.commit()
+
+        return bad_ids
 
     # заполнение таблицы бд с синонимами автомобильных брендов
     def filling_synonyms_database(self):
@@ -117,3 +158,5 @@ if __name__ == "__main__":
     bd_act = DatabaseActions()
     # print(bd_act.get_user_id(login="admin", password="admin_password"))
     # print(bd_act.add_new_site(bd_act.get_user_id(), ""))
+    # print(bd_act.get_parser_id_by_name("track_motors"))
+    print(bd_act.set_default_parsers(1, [1, 2, 3]))
