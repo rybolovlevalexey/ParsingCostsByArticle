@@ -1,4 +1,6 @@
 import json
+from typing import Dict
+
 import requests
 
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey, and_, or_, select, update, insert
@@ -68,6 +70,16 @@ class ParserInfo(Base):
     parser_site_done = Column(Boolean, default=False)
     parser_api_done = Column(Boolean, default=False)
 
+    def to_dict(self) -> dict[str, Column[str] | Column[bool]]:
+        return {
+            "parser_id": self.id,
+            "parser_name": self.parser_name,
+            "base_url": self.base_url,
+            "parser_site_done": self.parser_site_done,
+            "parser_api_done": self.parser_api_done
+        }
+
+
 # создание всех описанных таблиц
 # Base.metadata.create_all(engine)
 
@@ -79,12 +91,23 @@ class DatabaseActions:
         Session = sessionmaker(bind=self.engine)
         self.session = Session()
 
+    # создание нового пользователя с введёнными логином и паролем
     def create_new_user(self, login: str, password: str) -> bool:
         if len(self.session.query(User).filter(and_(User.login == login, User.password == password)).all()) > 0:
             return False
         self.session.add(User(login=login, password=password))
         self.session.commit()
         return True
+
+    # получение списка словарей с информацией о каждом парсере;
+    # ключи словаря: имя парсера, реализована обработка сайта, реализована работа с api
+    def get_parsers_names(self) -> list[dict[str: str | bool | Column[str] | Column[bool]]]:
+        output_result: list[dict[str: str | bool]] = list()
+        with Session(self.engine) as session:
+            result = session.query(ParserInfo).all()
+            for elem in result:
+                output_result.append(elem.to_dict())
+        return output_result
 
     # получение id пользователя по переданным логину и паролю, если логин и пароль неверные будет получено -1
     def get_user_id(self, login: str, password: str) -> int | Column[int]:
@@ -159,4 +182,6 @@ if __name__ == "__main__":
     # print(bd_act.get_user_id(login="admin", password="admin_password"))
     # print(bd_act.add_new_site(bd_act.get_user_id(), ""))
     # print(bd_act.get_parser_id_by_name("track_motors"))
-    print(bd_act.set_default_parsers(1, [1, 2, 3]))
+    # print(bd_act.set_default_parsers(1, [1, 2, 3]))
+    from pprint import pprint
+    pprint(bd_act.get_parsers_names())

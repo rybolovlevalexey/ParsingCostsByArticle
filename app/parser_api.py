@@ -53,9 +53,20 @@ def post_create_template(x_login: str = Header(...), x_password: str = Header(..
     pass
 
 
+@app.get("/parsers_names")
+def get_parsers_names():
+    """Получение списка всех реализованных парсеров с дополнительной информацией о них"""
+    bd_act = DatabaseActions()
+    result_parsers = bd_act.get_parsers_names()
+    return JSONResponse(status_code=200, content={"Parsers": [result_parsers]})
+
+
 @app.post("/set_default_parsers")
 def post_set_default_parsers(info_default_parsers: DefaultParsers,
                              x_login: str = Header(...), x_password: str = Header(...)):
+    """Установка и изменение парсеров по умолчанию для конкретного пользователя,
+    на основе двух списков (возможно пустых) с id парсеров (info_default_parsers.parsers_ids) и
+    с именами парсеров(info_default_parsers.parsers_names)."""
     bd_act = DatabaseActions()
     user_id = bd_act.get_user_id(x_login, x_password)
     if user_id == -1:
