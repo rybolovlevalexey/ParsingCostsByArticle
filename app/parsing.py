@@ -292,7 +292,7 @@ class ParserKomTrans(BaseParser):
             return {"parser_name": self.parser_name, "costs": [info_by_article[0][2], info_by_article[-1][2]]}
 
 
-# https://market.tmtr.ru
+# https://market.tmtr.ru/
 class ParserTrackMotors(BaseParser):
     parser_name = "track_motors"
 
@@ -574,7 +574,6 @@ class ParserAutoPiter(BaseParser):
         variants = list()
 
         print(search_url, costs_url)
-        print("------------")
         if "code" in json_content and json_content["code"] == "429":
             return {"parser_name": self.parser_name, "stop_flag": True}
         if "data" not in json_content:
@@ -589,24 +588,7 @@ class ParserAutoPiter(BaseParser):
             if elem["price"] > 0 and "deliveryDays" in elem and elem["deliveryDays"] is not None:
                 variants.append({"cost": elem["price"], "delivery_days": elem["deliveryDays"]})
 
-        # создание и наполнение итогового словаря
-        result_output = {"parser_name": self.parser_name}
-        if len(all_costs) == 0:
-            result_output["costs"] = list()
-        elif len(all_costs) == 1:
-            result_output["costs"] = all_costs
-        else:
-            result_output["costs"] = [min(all_costs), max(all_costs)]
-
-        if len(all_delivery_days) == 0:
-            result_output["delivery_days"] = list()
-        elif len(all_delivery_days) == 1:
-            result_output["delivery_days"] = all_delivery_days
-        else:
-            result_output["delivery_days"] = [min(all_delivery_days), max(all_delivery_days)]
-
-        result_output["variants"] = variants
-
+        result_output = self.create_output_json(all_costs, all_delivery_days, variants)
         return result_output
 
 

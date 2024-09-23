@@ -15,3 +15,8 @@ class WebSiteData(BaseModel):
 class ParsingInfo(BaseModel):
     article: str
     producer: str
+
+
+class DefaultParsers(BaseModel):
+    parsers_ids: list[str | int]
+    parsers_names: list[str]
