@@ -592,6 +592,20 @@ class ParserAutoPiter(BaseParser):
         return result_output
 
 
+# https://автолига.рф/
+class ParserAutoLiga(BaseParser):
+    parser_name = "auto_liga"
+
+    def __init__(self, base_url, login, password):
+        self.base_url = base_url
+        self.login = login
+        self.password = password
+
+    def parsing_article(self, article: str, producer: str | None = None,
+                        api_version: bool = True, waiting_flag: bool = False) -> dict[str: None | list[int | float]]:
+        pass
+
+
 if __name__ == "__main__":
     parser1 = ParserKomTrans()
     parser2 = ParserTrackMotors()
