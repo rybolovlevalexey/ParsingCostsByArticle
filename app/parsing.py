@@ -34,7 +34,7 @@ class BaseParser:
 
     def parsing_article(self, article: str, producer: str | None = None,
                         api_version: bool = True, waiting_flag: bool = False) -> dict[str: None | list[int | float]]:
-        pass
+        raise NotImplemented
 
     @staticmethod
     def cleaning_input_article(input_article: str) -> str:
@@ -80,12 +80,10 @@ class BaseParser:
         # Поиск и заполнение полей для ввода логина и пароля
         username_field = driver.find_element(By.NAME, list(authorization_dict.keys())[0])
         password_field = driver.find_element(By.NAME, list(authorization_dict.keys())[1])
-        print("найдены поля логин и пароль")
 
         username_field.send_keys(list(authorization_dict.values())[0])
         password_field.send_keys(list(authorization_dict.values())[1])
         password_field.send_keys(Keys.RETURN)
-        print("введены данные и нажат enter")
 
         if flag_sleep:
             time.sleep(3)
@@ -144,7 +142,7 @@ class ParserKomTrans(BaseParser):
                 auth_token = auth_data[self.parser_name]["token"]
             else:
                 api_auth_resp = requests.post(self.api_auth_url, json=self._authorization_api_dict)
-                pprint(json.loads(api_auth_resp.content))
+                # pprint(json.loads(api_auth_resp.content))
                 auth_token = json.loads(api_auth_resp.content)["token"]
                 auth_data[self.parser_name]["token"] = auth_token
                 open("authorization.json", "w").write(json.dumps(auth_data))
@@ -188,6 +186,7 @@ class ParserKomTrans(BaseParser):
 
             result_output = self.create_output_json(all_costs, all_delivery_days, variants)
             return result_output
+        # парсинг сайта с помощью selenium
         else:
             chrome_options = Options()
             chrome_options.add_argument(
@@ -195,11 +194,9 @@ class ParserKomTrans(BaseParser):
             service = Service(ChromeDriverManager().install())
             driver = webdriver.Chrome(service=service, options=chrome_options)
             # driver.implicitly_wait(10)
-            print("До блока try нет никаких ошибок")
 
             # Открытие страницы авторизации
             driver.get(self.auth_url)
-            print("страница авторизации открыта успешно")
 
             """
             if os.path.exists(os.path.join(BaseParser.session_dir, self.parser_name + ".pkl")):
@@ -217,7 +214,7 @@ class ParserKomTrans(BaseParser):
             driver.get(self.search_url + f"?fnd={article}")
             # Переход к защищенной странице
             # driver.get(self.search_url + f"?fnd={article}")
-            print("выполнение поиска по артикулу")
+            # print("выполнение поиска по артикулу")
             # wait = WebDriverWait(driver, 10)  # ожидание до 10 секунд
             # wait.until_not(EC.visibility_of_element_located((
             #     By.XPATH, "//h3[text()='Выполняется расширенный поиск, результаты будут отображены.']")))
@@ -240,7 +237,7 @@ class ParserKomTrans(BaseParser):
             """
 
             # Парсинг содержимого защищенной страницы
-            print("начат парсинг")
+            # print("начат парсинг")
             # сохранение в html файл ответа для дальнейших проверок
             html_source = driver.page_source
 
@@ -251,7 +248,7 @@ class ParserKomTrans(BaseParser):
 
             if len(driver.find_elements(By.CLASS_NAME, "orangebtn")) > 0:
                 driver.find_element(By.CLASS_NAME, "orangebtn").click()
-                print("Нажата кнопка попробовать снова")
+                # print("Нажата кнопка попробовать снова")
                 time.sleep(5)
 
             content = driver.find_element(By.TAG_NAME, 'body')
@@ -264,26 +261,27 @@ class ParserKomTrans(BaseParser):
                 info_by_article.append([line.find_elements(By.TAG_NAME, "td")[1].text.strip(),  # артикул
                                         line.find_elements(By.TAG_NAME, "td")[2].text.strip(),  # производитель
                                         line.find_elements(By.TAG_NAME, "td")[6].text.strip()])  # цена
-            print(f"Кол-во товаров найденных по артикулу {len(info_by_article)}")
+            # print(f"Кол-во товаров найденных по артикулу {len(info_by_article)}")
             if producer is None:
                 info_by_article = list(
                     map(lambda info_elem: [info_elem[0], info_elem[1], float(info_elem[2].split()[0])],
                         filter(lambda info_part: info_part[0] == article, info_by_article)))
-                print(f"Кол-во товаров с точным соответствием артикула {len(info_by_article)}")
+                # print(f"Кол-во товаров с точным соответствием артикула {len(info_by_article)}")
             else:
                 info_by_article = list(
                     map(lambda info_elem: [info_elem[0], info_elem[1], float(info_elem[2].split()[0])],
                         filter(lambda info_part:
                                info_part[0] == article and info_part[1].lower() == producer.lower(),
                                info_by_article)))
-                print(f"Кол-во товаров с точным соответствием артикула и производителя {len(info_by_article)}")
+                # print(f"Кол-во товаров с точным соответствием артикула и производителя {len(info_by_article)}")
             info_by_article = sorted(info_by_article, key=lambda info_part: info_part[2])
-            pprint(info_by_article)
+            # pprint(info_by_article)
             if len(info_by_article) > 0:
                 print(f"Самая низкая цена - {info_by_article[0][2]} \n"
                       f"самая высокая цена - {info_by_article[-1][2]}")
             else:
-                print("Информации по данному артикулу не найдено")
+                pass
+                # print("Информации по данному артикулу не найдено")
 
             if len(info_by_article) == 0:
                 return {"parser_name": self.parser_name, "costs": None}
@@ -369,6 +367,7 @@ class ParserTrackMotors(BaseParser):
 
             result_output = self.create_output_json(all_costs, all_delivery_days, all_variants)
             return result_output
+        # парсинг сайта в случае если передан соответствующий флаг
         else:
             chrome_options = Options()
             chrome_options.add_argument(
@@ -376,13 +375,10 @@ class ParserTrackMotors(BaseParser):
             service = Service(ChromeDriverManager().install())
             driver = webdriver.Chrome(service=service, options=chrome_options)
             # driver.implicitly_wait(10)
-            print("До блока try нет никаких ошибок")
 
             # Открытие страницы авторизации
             driver.get(self.auth_url)
-            print("страница авторизации открыта успешно")
             driver = self.auth_selenium(driver, self._authorization_dict, flag_sleep=True)
-            print("Произведена авторизация и информация сохранена в файл")
             self.save_selenium(driver, self.parser_name)
             art_input = driver.find_element(By.NAME, "q")
 
@@ -393,7 +389,6 @@ class ParserTrackMotors(BaseParser):
             info_by_article = list()
             try:
                 if len(driver.find_elements(By.CLASS_NAME, "mat-mdc-paginator-range-label")) == 0:
-                    print("на странице не была найдена информация, ждём ещё 5 сек")
                     time.sleep(self.waiting_time)
                 pages_count = int(driver.find_element(By.CLASS_NAME,
                                                       "mat-mdc-paginator-range-label").text.strip().split()[-1])
@@ -445,26 +440,24 @@ class ParserTrackMotors(BaseParser):
                         break
                     try:
                         driver.find_elements(By.CLASS_NAME, "mat-mdc-button-touch-target")[2].click()
-                        print(cur_page_number, pages_count)
                     except Exception:
                         continue
             else:
-                print("Информации по данному артикулу не найдено")
                 return {"parser_name": self.parser_name, "costs": None}
 
             pprint(info_by_article)
-            print(f"Кол-во найденных товаров по введённому артикулу {len(info_by_article)}")
+            # print(f"Кол-во найденных товаров по введённому артикулу {len(info_by_article)}")
             info_by_article = list(filter(lambda info_part: info_part[0] == article, info_by_article))
-            print(f"Кол-во товаров с точным соответствием артикула {len(info_by_article)}")
+            # print(f"Кол-во товаров с точным соответствием артикула {len(info_by_article)}")
             info_by_article = list(map(lambda info_part: [info_part[0], info_part[1],
                                                           float(info_part[2].replace(",", "."))], info_by_article))
             info_by_article = sorted(info_by_article, key=lambda info_part: info_part[2])
-            pprint(info_by_article)
-            if len(info_by_article) > 0:
-                print(f"Самая низкая цена - {info_by_article[0][2]} \n"
-                      f"самая высокая цена - {info_by_article[-1][2]}")
-            else:
-                print("Информации по данному артикулу после фильтрации не найдено")
+            # pprint(info_by_article)
+            # if len(info_by_article) > 0:
+            #     print(f"Самая низкая цена - {info_by_article[0][2]} \n"
+            #           f"самая высокая цена - {info_by_article[-1][2]}")
+            # else:
+            #     print("Информации по данному артикулу после фильтрации не найдено")
 
             if len(info_by_article) == 0:
                 return {"parser_name": self.parser_name, "costs": None}
@@ -567,13 +560,13 @@ class ParserAutoPiter(BaseParser):
 
         more_info_search = self.cur_session.get(url_more_info, headers={"User-Agent": user_agent})
         more_info = json.loads(more_info_search.content)
-        pprint(more_info)
+        # pprint(more_info)
 
         all_costs = list()
         all_delivery_days = list()
         variants = list()
 
-        print(search_url, costs_url)
+        # print(search_url, costs_url)
         if "code" in json_content and json_content["code"] == "429":
             return {"parser_name": self.parser_name, "stop_flag": True}
         if "data" not in json_content:
