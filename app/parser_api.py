@@ -4,14 +4,20 @@ from parsing import ParserKomTrans, ParserTrackMotors, ParserAutoPiter
 from concurrent.futures import ThreadPoolExecutor
 import uvicorn
 import json
+from sqladmin import Admin, ModelView
+from sqlalchemy import create_engine
 
-from api_models import NewUser, WebSiteData, ParsingInfo, DefaultParsers
+from api_models import NewUser, WebSiteData, ParsingInfo, DefaultParsers, UserAdmin
 from databases import DatabaseActions
 from parser_api_router_v1 import router_v1
+from config import Settings
 
 
+settings = Settings()
 app = FastAPI(title="Parsing product costs by its article",
               version="1.0.0")
+admin = Admin(app, create_engine(settings.db_name))
+admin.add_view(UserAdmin)
 
 
 @app.post("/costs_by_json",

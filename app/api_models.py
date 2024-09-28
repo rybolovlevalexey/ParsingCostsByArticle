@@ -1,4 +1,6 @@
 from pydantic import BaseModel
+from sqladmin import ModelView
+from databases import User
 
 
 class NewUser(BaseModel):
@@ -20,3 +22,8 @@ class ParsingInfo(BaseModel):
 class DefaultParsers(BaseModel):
     parsers_ids: list[str | int]
     parsers_names: list[str]
+
+
+# модель данных для админки, отображаются id и логин пользователя
+class UserAdmin(ModelView, model=User):
+    column_list = [User.id, User.login]
