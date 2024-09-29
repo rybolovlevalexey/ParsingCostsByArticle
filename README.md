@@ -5,5 +5,5 @@
 ### Использованные технологии:
 #### Парсинг - requests, selenium
 #### API - FastApi, pydantic, sqladmin(создание панели администратора)
-#### DataBase - sqlalchemy + sqlite
+#### DataBase - sqlalchemy, sqlite, alembic
 #### Тестирование - pytests
