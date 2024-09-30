@@ -4,8 +4,7 @@ import requests
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey, and_, or_, select, update, insert
 from sqlalchemy.orm import sessionmaker, Session, declarative_base
 
-from config import Settings
-
+from app.config import Settings
 # инициализация настроек приложения
 settings = Settings()
 # создание подключения
@@ -27,10 +26,13 @@ class Templates(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(String, ForeignKey('users.id'))
-    # столбцы в файле и порядковый номер шаблона начинаются с 1
-    number = Column(Integer, default=1)
-    article_column_number = Column(Integer, default=1)
-    producer_column_number = Column(Integer, default=1)
+    # порядковый номер шаблона начинается с 0
+    number = Column(Integer, default=0)
+    # номера столбцов в файле с информацией от пользователя в таблице хранятся с нуля, чтобы потом не делать -1,
+    # когда будет работа с индексами, но пользователем передаётся нумерация с 1, поэтому будет выполнен -1
+    # при добавлении в БД во время исполнения метода из DatabaseActions
+    article_column_number = Column(Integer, default=0)
+    producer_column_number = Column(Integer, default=0)
 
 
 class AuthData(Base):
@@ -92,6 +94,15 @@ class DatabaseActions:
         # создание сессии
         Session = sessionmaker(bind=engine)
         self.session = Session()
+
+    def add_template(self, user_id: int, article_column_number: int, producer_column_number: int) -> bool:
+        cur_temp_num = self.session.query(Templates).filter(Templates.user_id == user_id).count()
+        new_temp = Templates(user_id=user_id, number=cur_temp_num + 1,
+                             article_column_number=article_column_number - 1,
+                             producer_column_number=producer_column_number - 1)
+        self.session.add(new_temp)
+        self.session.commit()
+        return True
 
     # создание нового пользователя с введёнными логином и паролем
     def create_new_user(self, login: str, password: str) -> bool:
@@ -183,4 +194,4 @@ if __name__ == "__main__":
     # print(bd_act.get_parser_id_by_name("track_motors"))
     # print(bd_act.set_default_parsers(1, [1, 2, 3]))
     from pprint import pprint
-    pprint(bd_act.get_parsers_names())
+    # pprint(bd_act.get_parsers_names())

@@ -7,7 +7,7 @@ import json
 from sqladmin import Admin, ModelView
 from sqlalchemy import create_engine
 
-from api_models import NewUser, WebSiteData, ParsingInfo, DefaultParsers, UserAdmin
+from api_models import NewUser, WebSiteData, ParsingInfo, DefaultParsers, UserAdmin, NewTemplate
 from databases import DatabaseActions
 from parser_api_router_v1 import router_v1
 from config import Settings
@@ -55,8 +55,17 @@ def post_create_user(info: NewUser):
 
 
 @app.post("/create_template")
-def post_create_template(x_login: str = Header(...), x_password: str = Header(...)):
-    pass
+def post_create_template(temp_info: NewTemplate, x_login: str = Header(...), x_password: str = Header(...)):
+    db_act = DatabaseActions()
+    user_id = db_act.get_user_id(x_login, x_password)
+    if user_id == -1:
+        return JSONResponse(status_code=422, content={"message": "Получены некорректные данные для авторизации"})
+
+    db_act.add_template(user_id, temp_info.article_column_number, temp_info.producer_column_number)
+    return JSONResponse(status_code=201,
+                        content={"message":
+                                 f"Для пользователя {x_login} успешно добавлен новый шаблон для обработки "
+                                 f"excel файла с информации об артикулах и производителях конкретных товаров"})
 
 
 @app.get("/parsers_names")
